@@ -48,11 +48,17 @@ impl Clone for QualityCount{
     }
 }
 pub struct PerBaseQualityScores{
+    min_char :u8,
+    max_char :u8,
     quality_counts: Vec<QualityCount>
 }
 impl PerBaseQualityScores{
     pub fn new() -> PerBaseQualityScores {
-        return PerBaseQualityScores {quality_counts: Vec::new()};
+        return PerBaseQualityScores {
+            quality_counts: Vec::new(),
+            min_char: 255,
+            max_char: 0
+        };
     }
 }
 #[derive(Debug)]
@@ -64,13 +70,43 @@ pub struct BasicStats {
     lowest_char:u8,
     gatcn_count:[u8;5]
 }
+#[derive(Clone,Debug)]
+pub struct PhreadEncoding {
+    name: &'static str,
+    offset: u8
+}
+static SANGER_ENCODING_OFFSET:u8 = 33;
+static ILUMINA_1_3_ENCODING_OFFSET:u8 = 64;
+
+impl PhreadEncoding {
+    fn get_phread_encoding(lowest_char:u8) -> Result<PhreadEncoding,String> {
+        if lowest_char < 32 {
+            return Err("No known encodings with chars < 33".to_string());
+        }else if lowest_char < 64{
+            return Ok(PhreadEncoding{
+                offset: SANGER_ENCODING_OFFSET,
+                name:  "Sanger / Illumina 1.9"
+            });
+        }else if lowest_char == ILUMINA_1_3_ENCODING_OFFSET + 1 {
+            return Ok(PhreadEncoding{
+                offset: ILUMINA_1_3_ENCODING_OFFSET ,
+                name:  "Illumina 1.3"
+            });
+        }else if lowest_char <= 126 {
+            return Ok(PhreadEncoding{
+                offset: ILUMINA_1_3_ENCODING_OFFSET ,
+                name:  "Illumina 1.5"
+            });
+        }else{
+            return Err("No known encodings with chars > 126".to_string());
+        }
+    }
+    
+}
 impl QCModule for PerBaseQualityScores {
     fn print_report(&mut self) -> () {
         for ch in &self.quality_counts {
-            for q in ch.counts.iter() {
-                print!("{} ",q);
-            }
-            println!("");
+            println!("mean = {}",ch.get_mean(self.min_char as u32));
         }
     }
     fn process_sequence(&mut self,seq:&Sequence) -> (){
@@ -79,6 +115,8 @@ impl QCModule for PerBaseQualityScores {
             self.quality_counts.resize(len,QualityCount::new());
         }
         for (idx,ch) in seq.quality.iter().enumerate() {
+            self.min_char = cmp::min(self.min_char,*ch);
+            self.max_char = cmp::max(self.max_char,*ch);            
             self.quality_counts[idx].counts[*ch as usize] += 1;
         }
     }
@@ -98,6 +136,7 @@ impl BasicStats {
 impl QCModule for BasicStats{
     fn print_report(&mut self) -> () {
         println!("BasicStats={:?}",self);
+        println!("Encode = {:?}",PhreadEncoding::get_phread_encoding(self.lowest_char));
     }
     fn process_sequence(&mut self,seq:&Sequence) -> () {
         self.actual_count += 1;

@@ -29,19 +29,19 @@ impl <T:Read> FastQFile<T> {
     }
     fn next(&mut self) -> Result<Sequence,Error> {
         
-        let n = try!(self.reader.read_line(&mut self.name));
+        let n = try!(self.reader.read_to_string(&mut self.name));
         if n <= 0 {
             return Err(Error::new(ErrorKind::Other,"No"));
         }
-        let n2 = try!(self.reader.read_line(&mut self.sequence));
+        let n2 = try!(self.reader.read_to_string(&mut self.sequence));
         if n2 <= 0 {
             return Err(Error::new(ErrorKind::Other,"No"));
         }
-        let n3 = try!(self.reader.read_line(&mut self.name));
+        let n3 = try!(self.reader.read_to_string(&mut self.name));
         if n3 <= 0 {
             return Err(Error::new(ErrorKind::Other,"No"));
         }
-        let n4 = try!(self.reader.read_line(&mut self.quality));
+        let n4 = try!(self.reader.read_to_string(&mut self.quality));
         if n4 <= 0 {
             return Err(Error::new(ErrorKind::Other,"No"));
         }else{
@@ -62,6 +62,7 @@ fn main() {
         let rslt = fastq_file.next();
         match rslt {
             Ok(seq) => {
+                println!("seq={}!",String::from_utf8_lossy(seq.sequence));
                 report1.process_sequence(&seq);
                 report2.process_sequence(&seq);
             },
