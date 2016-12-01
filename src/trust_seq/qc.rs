@@ -1,8 +1,9 @@
-use std::cmp;
 use std::io::Write;
 use std::io::Error;
 use std::io::ErrorKind;
 use std::io::Result;
+use trust_seq::per_base_sequence_content::PerBaseSequenceContent;
+use trust_seq::per_sequence_quality_scores::PerSequenceQualityScores;
 use trust_seq::per_base_quality_scores::PerBaseQualityScores;
 use trust_seq::basic_stats::BasicStats;
 use trust_seq::utils::Sequence;
@@ -11,6 +12,8 @@ pub fn create_qcmodules() -> Vec<Box<QCModule>> {
     let mut modules :Vec<Box<QCModule>> = Vec::new();
     modules.push(Box::new(BasicStats::new()));
     modules.push(Box::new(PerBaseQualityScores::new()));
+    modules.push(Box::new(PerSequenceQualityScores::new()));
+    modules.push(Box::new(PerBaseSequenceContent::new()));
     return modules;
 }
 pub trait QCModule{    
