@@ -1,20 +1,23 @@
 use std::fs::File;
+use std::collections::HashMap;
 use trust_seq::utils::FastQReader;
+use trust_seq::utils::Sequence;
 use trust_seq::qc::QCModule;
-use trust_seq::gc_model::GCModelValue;
-use trust_seq::gc_model::GCModel;
+use trust_seq::per_sequence_gc_content::PerSequenceGCContents;
 mod trust_seq;
 
 #[test]
 fn test_calc_claiming_counts() {
-    let c = GCModel::new(10);
-    let mut gc_distribution: [f64; 101] = [0.0; 101];
-    for gc_content in 0..11 {
-        c.add_value(gc_content, &mut gc_distribution);
-    }
-    for idx in 0..101 {
-        assert!(1.0 == gc_distribution[idx]);
-    }
+    let c = PerBaseGCContents::new();
+    let seq: [u8; 10] = ['a' as u8; 10];
+    let qual: [u8; 10] = ['a' as u8; 10];
+    let sequence = Sequence {
+        sequence: &seq,
+        quality: &qual,
+    };
+    let mut report = File::create("test_data.txt").unwrap();
+    c.process_sequence(&seq);
+    c.report_text(&report);
 }
 fn main() {
     let file = File::open("test.fastq").unwrap();
