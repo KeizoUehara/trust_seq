@@ -9,6 +9,7 @@ use trust_seq::per_sequence_gc_content::PerSequenceGCContents;
 use trust_seq::basic_stats::BasicStats;
 use trust_seq::utils::Sequence;
 use trust_seq::n_content::NContent;
+use trust_seq::sequence_length_distribution::SequenceLengthDistribution;
 
 pub fn create_qcmodules() -> Vec<Box<QCModule>> {
     let mut modules: Vec<Box<QCModule>> = Vec::new();
@@ -18,6 +19,7 @@ pub fn create_qcmodules() -> Vec<Box<QCModule>> {
     modules.push(Box::new(PerBaseSequenceContent::new()));
     modules.push(Box::new(PerSequenceGCContents::new()));
     modules.push(Box::new(NContent::new()));
+    modules.push(Box::new(SequenceLengthDistribution::new()));
     return modules;
 }
 pub trait QCModule {
