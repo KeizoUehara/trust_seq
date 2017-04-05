@@ -8,16 +8,17 @@ mod trust_seq;
 
 #[test]
 fn test_calc_claiming_counts() {
-    let c = PerBaseGCContents::new();
+    let mut c = PerSequenceGCContents::new();
     let seq: [u8; 10] = ['a' as u8; 10];
     let qual: [u8; 10] = ['a' as u8; 10];
+
     let sequence = Sequence {
         sequence: &seq,
         quality: &qual,
     };
-    let mut report = File::create("test_data.txt").unwrap();
-    c.process_sequence(&seq);
-    c.report_text(&report);
+    let mut report = File::create("test_data_123.txt").unwrap();
+    c.process_sequence(&sequence);
+    c.print_text_report(&mut report);
 }
 fn main() {
     let file = File::open("test.fastq").unwrap();
