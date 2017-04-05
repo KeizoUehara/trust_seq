@@ -1,5 +1,4 @@
 use std::fs::File;
-use std::collections::HashMap;
 use trust_seq::utils::FastQReader;
 use trust_seq::utils::Sequence;
 use trust_seq::qc::QCModule;

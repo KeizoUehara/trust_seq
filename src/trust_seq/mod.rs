@@ -6,3 +6,4 @@ pub mod per_sequence_quality_scores;
 pub mod per_base_sequence_content;
 pub mod per_base_quality_scores;
 pub mod basic_stats;
+pub mod n_content;

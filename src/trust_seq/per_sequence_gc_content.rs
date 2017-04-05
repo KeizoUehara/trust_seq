@@ -23,8 +23,9 @@ impl PerSequenceGCContents {
 impl QCModule for PerSequenceGCContents {
     fn print_report(&mut self) -> () {}
     fn print_text_report(&self, writer: &mut Write) -> Result<()> {
+        writeln!(writer, "#GC Content\tCount");
         for idx in 0..101 {
-            try!(writeln!(writer, "{}={}", idx, self.gc_distribution[idx]));
+            try!(writeln!(writer, "{}\t{}", idx, self.gc_distribution[idx]));
         }
         return Ok(());
     }
