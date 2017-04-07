@@ -8,3 +8,6 @@ pub mod per_base_sequence_content;
 pub mod per_base_quality_scores;
 pub mod basic_stats;
 pub mod n_content;
+pub mod contaminant;
+pub mod contaminant_list;
+pub mod over_represented_seqs;
