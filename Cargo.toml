@@ -4,6 +4,7 @@ version = "0.1.0"
 authors = ["bio"]
 
 [dependencies]
+getopts = "0.2.4"
 
 [[bin]]
 name = "trust_seq"

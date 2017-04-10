@@ -1,3 +1,4 @@
+extern crate getopts;
 mod trust_seq;
 
 #[cfg(test)]

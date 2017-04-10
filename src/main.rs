@@ -1,3 +1,4 @@
+extern crate getopts;
 use std::fs::File;
 use trust_seq::utils::FastQReader;
 mod trust_seq;
