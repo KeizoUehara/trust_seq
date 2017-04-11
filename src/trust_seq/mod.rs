@@ -1,16 +1,8 @@
 pub mod trust_seq;
 pub mod utils;
-pub mod per_sequence_gc_content;
 pub mod qc;
 pub mod gc_model;
-mod sequence_length_distribution;
-pub mod per_sequence_quality_scores;
-pub mod per_base_sequence_content;
-pub mod per_base_quality_scores;
-pub mod basic_stats;
-pub mod n_content;
 pub mod contaminant;
 pub mod contaminant_list;
 //pub mod adapter;
 //pub mod adapter_list;
-pub mod over_represented_seqs;

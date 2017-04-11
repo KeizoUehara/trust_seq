@@ -1,16 +1,25 @@
+mod per_base_sequence_content;
+mod per_sequence_quality_scores;
+mod per_base_quality_scores;
+mod per_sequence_gc_content;
+mod basic_stats;
+mod n_content;
+mod sequence_length_distribution;
+mod over_represented_seqs;
+use super::utils::Sequence;
+
 use std::io::Write;
 use std::io::Error;
 use std::io::ErrorKind;
 use std::io::Result;
-use trust_seq::per_base_sequence_content::PerBaseSequenceContent;
-use trust_seq::per_sequence_quality_scores::PerSequenceQualityScores;
-use trust_seq::per_base_quality_scores::PerBaseQualityScores;
-use trust_seq::per_sequence_gc_content::PerSequenceGCContents;
-use trust_seq::basic_stats::BasicStats;
-use trust_seq::utils::Sequence;
-use trust_seq::n_content::NContent;
-use trust_seq::sequence_length_distribution::SequenceLengthDistribution;
-use trust_seq::over_represented_seqs::OverRepresentedSeqs;
+use self::per_base_sequence_content::PerBaseSequenceContent;
+use self::per_sequence_quality_scores::PerSequenceQualityScores;
+use self::per_base_quality_scores::PerBaseQualityScores;
+use self::per_sequence_gc_content::PerSequenceGCContents;
+use self::basic_stats::BasicStats;
+use self::n_content::NContent;
+use self::sequence_length_distribution::SequenceLengthDistribution;
+use self::over_represented_seqs::OverRepresentedSeqs;
 
 pub fn create_qcmodules() -> Vec<Box<QCModule>> {
     let mut modules: Vec<Box<QCModule>> = Vec::new();
