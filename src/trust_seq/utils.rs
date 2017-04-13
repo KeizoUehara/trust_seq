@@ -6,6 +6,28 @@ use std::option::Option;
 use std::io::Error;
 use std::io::ErrorKind;
 
+pub fn split_by_space(line: &str) -> Vec<&str> {
+    let mut vals: Vec<&str> = Vec::new();
+    let mut start = -1i32;
+    for (idx, ch) in line.char_indices() {
+        if start < 0 {
+            if !ch.is_whitespace() {
+                start = idx as i32;
+            }
+        } else {
+            if ch.is_whitespace() {
+                vals.push(&line[(start as usize)..idx]);
+                start = -1;
+            }
+        }
+
+    }
+    if 0 < start {
+        vals.push(&line[(start as usize)..]);
+    }
+    return vals;
+}
+
 pub fn revcomp(dna: &str) -> String {
     let mut rdna: String = String::with_capacity(dna.len());
     for c in dna.chars().rev() {
@@ -136,5 +158,17 @@ impl<'a, T: Read> FastQReader<'a, T> {
             }
             false => return Ok(None),
         }
+    }
+}
+
+
+#[cfg(test)]
+mod tests {
+    use super::split_by_space;
+    #[test]
+    fn test_split_by_space() {
+        assert_eq!(vec!["test1", "test2", "test3"],
+                   split_by_space("test1 test2  test3"));
+        assert_eq!(vec!["test1", "test2"], split_by_space(" test1 test2  "));
     }
 }

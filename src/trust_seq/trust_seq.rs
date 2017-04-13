@@ -1,16 +1,27 @@
 use std::vec::Vec;
 use std::path::Path;
-use std::io::{Error, ErrorKind};
+use std::io;
+use std::fs::File;
+use std::io::BufReader;
+use std::io::ErrorKind;
+use serde_json;
 use getopts::{Options, Fail};
+use trust_seq::module_config::ModuleConfig;
 
 #[derive(Debug)]
 pub enum TrustSeqErr {
-    Io(Error),
+    Io(io::Error),
     ArgError(Fail),
+    JsonError(serde_json::error::Error),
 }
-impl From<Error> for TrustSeqErr {
-    fn from(err: Error) -> TrustSeqErr {
+impl From<io::Error> for TrustSeqErr {
+    fn from(err: io::Error) -> TrustSeqErr {
         TrustSeqErr::Io(err)
+    }
+}
+impl From<serde_json::error::Error> for TrustSeqErr {
+    fn from(err: serde_json::error::Error) -> TrustSeqErr {
+        TrustSeqErr::JsonError(err)
     }
 }
 impl From<Fail> for TrustSeqErr {
@@ -32,6 +43,7 @@ pub struct TrustSeqConfig {
     pub nofilter: bool,
     pub contaminant_file: Option<String>,
     pub adapter_file: Option<String>,
+    pub module_config: ModuleConfig,
 }
 #[test]
 fn test_get_fastqc_config() {
@@ -54,27 +66,25 @@ impl TrustSeqConfig {
         let matches = opts.parse(&args[1..])?;
         if let Some(c_path) = matches.opt_str("c") {
             if !Path::new(&c_path).is_file() {
-                return Err(TrustSeqErr::Io((Error::new(ErrorKind::NotFound,
-                                                       format!("{} is not Found!", c_path)))));
+                return Err(TrustSeqErr::Io((io::Error::new(ErrorKind::NotFound,
+                                                           format!("{} is not Found!", c_path)))));
             }
             config.contaminant_file = Some(c_path);
         }
         if let Some(a_path) = matches.opt_str("a") {
             if !Path::new(&a_path).is_file() {
-                return Err(TrustSeqErr::Io((Error::new(ErrorKind::NotFound,
-                                                       format!("{} is not Found!", a_path)))));
+                return Err(TrustSeqErr::Io((io::Error::new(ErrorKind::NotFound,
+                                                           format!("{} is not Found!", a_path)))));
             }
             config.adapter_file = Some(a_path);
         }
         if let Some(l_path) = matches.opt_str("l") {
-            if !Path::new(&l_path).is_file() {
-                return Err(TrustSeqErr::Io((Error::new(ErrorKind::NotFound,
-                                                       format!("{} is not Found!", l_path)))));
-            }
+            let f = File::open(l_path)?;
+            config.module_config.load(BufReader::new(f))?;
         }
         return Ok(config);
     }
-    fn new() -> TrustSeqConfig {
+    pub fn new() -> TrustSeqConfig {
         return TrustSeqConfig {
                    nogroup: false,
                    expgroup: false,
@@ -87,6 +97,7 @@ impl TrustSeqConfig {
                    nofilter: false,
                    contaminant_file: None,
                    adapter_file: None,
+                   module_config: ModuleConfig::new(),
                };
     }
 }
