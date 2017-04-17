@@ -1,19 +1,20 @@
 use std::cmp;
+use std::f64;
 use std::io::Write;
 use serde_json::value::Value;
 use serde_json::value;
-use trust_seq::module_config::ModuleConfig;
 use trust_seq::utils::Sequence;
 use trust_seq::trust_seq::{TrustSeqConfig, TrustSeqErr};
 use trust_seq::qc::QCModule;
 use trust_seq::qc::PhreadEncoding;
-use trust_seq::qc::QualityCount;
+use trust_seq::qc::quality_counts::QualityCounts;
+use trust_seq::group::BaseGroup;
 
 pub struct PerBaseQualityScores<'a> {
     min_char: u8,
     max_char: u8,
-    quality_counts: Vec<QualityCount>,
-    module_config: &'a ModuleConfig,
+    qualities: QualityCounts,
+    config: &'a TrustSeqConfig,
 }
 #[derive(Serialize)]
 struct PerBaseQualityReport {
@@ -22,37 +23,40 @@ struct PerBaseQualityReport {
 }
 #[derive(Serialize)]
 struct Quality {
-    base: usize,
+    lower_base: usize,
+    upper_base: usize,
     mean: f64,
-    median: u32,
-    lower_quartile: u32,
-    upper_quartile: u32,
-    percentile_10: u32,
-    percentile_90: u32,
+    median: f64,
+    lower_quartile: f64,
+    upper_quartile: f64,
+    percentile_10: f64,
+    percentile_90: f64,
 }
 
 impl<'a> PerBaseQualityScores<'a> {
     pub fn new(config: &'a TrustSeqConfig) -> PerBaseQualityScores {
         return PerBaseQualityScores {
-                   quality_counts: Vec::new(),
+                   qualities: QualityCounts::new(),
                    min_char: 255,
                    max_char: 0,
-                   module_config: &config.module_config,
+                   config: config,
                };
     }
     fn get_qualitys(&self) -> Result<PerBaseQualityReport, TrustSeqErr> {
         let encode = PhreadEncoding::get_phread_encoding(self.min_char)?;
         let offset = encode.offset as u32;
         let mut v = Vec::new();
-        for (idx, ch) in self.quality_counts.iter().enumerate() {
+        let groups = BaseGroup::make_base_groups(&self.config.group_type, self.qualities.len());
+        for (idx, group) in groups.iter().enumerate() {
             v.push(Quality {
-                       base: idx + 1,
-                       mean: ch.get_mean(offset),
-                       median: ch.get_percentile(offset, 50),
-                       lower_quartile: ch.get_percentile(offset, 25),
-                       upper_quartile: ch.get_percentile(offset, 75),
-                       percentile_10: ch.get_percentile(offset, 10),
-                       percentile_90: ch.get_percentile(offset, 90),
+                       lower_base: group.lower_count,
+                       upper_base: group.upper_count,
+                       mean: self.qualities.get_mean(group, offset),
+                       median: self.qualities.get_percentile(group, offset, 50),
+                       lower_quartile: self.qualities.get_percentile(group, offset, 25),
+                       upper_quartile: self.qualities.get_percentile(group, offset, 75),
+                       percentile_10: self.qualities.get_percentile(group, offset, 10),
+                       percentile_90: self.qualities.get_percentile(group, offset, 90),
                    });
         }
         return Ok(PerBaseQualityReport {
@@ -68,38 +72,33 @@ impl<'a> QCModule for PerBaseQualityScores<'a> {
     fn is_error(&self) -> bool {
         let encode = PhreadEncoding::get_phread_encoding(self.min_char).unwrap();
         let offset = encode.offset as u32;
-        let lower_th = self.module_config.get("quality_base_lower:error") as u32;
-        let median_th = self.module_config.get("quality_base_median:error") as u32;
-        for ch in &self.quality_counts {
-            if ch.get_percentile(offset, 10) < lower_th ||
-               ch.get_percentile(offset, 50) < median_th {
-                return true;
-            }
-        }
-        return false;
+        let lower_th = self.config
+            .module_config
+            .get("quality_base_lower:error") as u32;
+        let median_th = self.config
+            .module_config
+            .get("quality_base_median:error") as u32;
+
+        return !(self.qualities.get_min_percentile(offset, 10) < lower_th ||
+                 self.qualities.get_min_percentile(offset, 50) < median_th);
     }
     fn is_warn(&self) -> bool {
         let encode = PhreadEncoding::get_phread_encoding(self.min_char).unwrap();
         let offset = encode.offset as u32;
-        let lower_th = self.module_config.get("quality_base_lower:warn") as u32;
-        let median_th = self.module_config.get("quality_base_median:warn") as u32;
-        for ch in &self.quality_counts {
-            if ch.get_percentile(offset, 10) < lower_th ||
-               ch.get_percentile(offset, 50) < median_th {
-                return true;
-            }
-        }
-        return false;
+        let lower_th = self.config.module_config.get("quality_base_lower:warn") as u32;
+        let median_th = self.config
+            .module_config
+            .get("quality_base_median:warn") as u32;
+        return !(self.qualities.get_min_percentile(offset, 10) < lower_th ||
+                 self.qualities.get_min_percentile(offset, 50) < median_th);
     }
     fn process_sequence(&mut self, seq: &Sequence) -> () {
         let len = seq.quality.len();
-        if self.quality_counts.len() < len {
-            self.quality_counts.resize(len, QualityCount::new());
-        }
+        self.qualities.ensure_size(len);
         for (idx, ch) in seq.quality.iter().enumerate() {
             self.min_char = cmp::min(self.min_char, *ch);
             self.max_char = cmp::max(self.max_char, *ch);
-            self.quality_counts[idx].counts[*ch as usize] += 1;
+            self.qualities.add_value(idx, *ch);
         }
     }
     fn to_json(&self) -> Result<Value, TrustSeqErr> {
@@ -109,15 +108,28 @@ impl<'a> QCModule for PerBaseQualityScores<'a> {
     fn print_text_report(&self, writer: &mut Write) -> Result<(), TrustSeqErr> {
         let vals = self.get_qualitys()?;
         for q in vals.quality_data {
-            write!(writer,
-                   "{}\t{}\t{}\t{}\t{}\t{}\t{}\n",
-                   q.base,
-                   q.mean,
-                   q.median,
-                   q.lower_quartile,
-                   q.upper_quartile,
-                   q.percentile_10,
-                   q.percentile_90)?;
+            if q.lower_base == q.upper_base {
+                write!(writer,
+                       "{}\t{}\t{}\t{}\t{}\t{}\t{}\n",
+                       q.lower_base,
+                       q.mean,
+                       q.median,
+                       q.lower_quartile,
+                       q.upper_quartile,
+                       q.percentile_10,
+                       q.percentile_90)?;
+            } else {
+                write!(writer,
+                       "{}-{}\t{}\t{}\t{}\t{}\t{}\t{}\n",
+                       q.lower_base,
+                       q.upper_base,
+                       q.mean,
+                       q.median,
+                       q.lower_quartile,
+                       q.upper_quartile,
+                       q.percentile_10,
+                       q.percentile_90)?;
+            }
         }
         return Ok(());
     }

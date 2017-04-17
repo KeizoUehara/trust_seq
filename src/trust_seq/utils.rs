@@ -129,6 +129,7 @@ impl<R: Read> LineReader<R> {
     }
 }
 pub struct Sequence<'a> {
+    pub id: &'a [u8],
     pub sequence: &'a [u8],
     pub quality: &'a [u8],
 }
@@ -148,10 +149,12 @@ impl<'a, T: Read> FastQReader<'a, T> {
         let rslt = try!(self.reader.read_lines(&mut self.lines));
         match rslt {
             true => {
+                let id = self.lines[0];
                 let seq = self.lines[1];
                 let qual = self.lines[3];
                 let len = seq.len() - 1;
                 return Ok(Some(Sequence {
+                                   id: &id[0..id.len() - 1],
                                    sequence: &seq[0..len],
                                    quality: &qual[0..len],
                                }));

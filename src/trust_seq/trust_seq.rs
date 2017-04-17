@@ -7,7 +7,7 @@ use std::io::ErrorKind;
 use serde_json;
 use getopts::{Options, Fail};
 use trust_seq::module_config::ModuleConfig;
-
+use trust_seq::group::GroupType;
 #[derive(Debug)]
 pub enum TrustSeqErr {
     Io(io::Error),
@@ -30,10 +30,10 @@ impl From<Fail> for TrustSeqErr {
     }
 }
 
+
 #[derive(Clone,Debug)]
 pub struct TrustSeqConfig {
-    pub nogroup: bool,
-    pub expgroup: bool,
+    pub group_type: GroupType,
     pub quiet: bool,
     pub show_version: bool,
     pub kmer_size: Option<u32>,
@@ -86,8 +86,7 @@ impl TrustSeqConfig {
     }
     pub fn new() -> TrustSeqConfig {
         return TrustSeqConfig {
-                   nogroup: false,
-                   expgroup: false,
+                   group_type: GroupType::linear,
                    quiet: false,
                    show_version: false,
                    kmer_size: None,

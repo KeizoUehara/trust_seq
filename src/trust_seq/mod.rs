@@ -1,6 +1,7 @@
 pub mod trust_seq;
 pub mod utils;
 pub mod qc;
+pub mod group;
 pub mod gc_model;
 pub mod contaminant;
 pub mod contaminant_list;

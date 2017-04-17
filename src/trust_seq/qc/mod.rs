@@ -1,5 +1,7 @@
 mod basic_stats;
+mod quality_counts;
 mod per_base_quality_scores;
+//mod per_tile_quality_scores;
 //mod per_sequence_gc_content;
 //mod per_base_sequence_content;
 //mod per_sequence_quality_scores;
@@ -44,6 +46,9 @@ pub fn create_qcmodules<'a>(config: &'a TrustSeqConfig) -> Vec<Box<QCModule + 'a
 }
 pub trait QCModule {
     fn get_name(&self) -> &'static str;
+    fn ignore_in_report(&self) -> bool {
+        return false;
+    }
     fn is_error(&self) -> bool {
         return false;
     }
@@ -81,45 +86,6 @@ pub fn get_json_reports<'a>(modules: &Vec<Box<QCModule + 'a>>)
         map.insert(module.get_name().to_string(), report);
     }
     return Ok(map);
-}
-#[derive(Copy)]
-pub struct QualityCount {
-    pub counts: [u64; 150],
-}
-impl QualityCount {
-    pub fn new() -> QualityCount {
-        return QualityCount { counts: [0; 150] };
-    }
-    pub fn get_mean(&self, offset: u32) -> f64 {
-        let mut total: f64 = 0.0;
-        let mut count: f64 = 0.0;
-        for (idx, c) in self.counts.iter().enumerate() {
-            let cnt = *c as f64;
-            total += cnt * ((idx as f64) - (offset as f64));
-            count += cnt;
-        }
-        return total / count;
-    }
-    pub fn get_percentile(&self, offset: u32, percentile: u32) -> u32 {
-        let mut total: u64 = 0;
-        for c in self.counts.iter() {
-            total += *c;
-        }
-        total = total * (percentile as u64) / 100;
-        let mut count = 0;
-        for (i, c) in self.counts.iter().enumerate() {
-            count += *c;
-            if count >= total {
-                return (i as u32 - offset) as u32;
-            }
-        }
-        return 0;
-    }
-}
-impl Clone for QualityCount {
-    fn clone(&self) -> QualityCount {
-        return *self;
-    }
 }
 #[derive(Clone,Debug)]
 pub struct PhreadEncoding {
