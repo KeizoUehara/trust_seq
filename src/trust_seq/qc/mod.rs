@@ -6,12 +6,12 @@ mod per_sequence_quality_scores;
 mod per_base_sequence_content;
 mod per_sequence_gc_content;
 mod n_content;
+mod sequence_length_distribution;
 
 
 
 
 
-//mod sequence_length_distribution;
 //mod over_represented_seqs;
 use super::utils::Sequence;
 
@@ -29,10 +29,11 @@ use self::per_sequence_quality_scores::PerSequenceQualityScores;
 use self::per_base_sequence_content::PerBaseSequenceContent;
 use self::per_sequence_gc_content::PerSequenceGCContents;
 use self::n_content::NContent;
+use self::sequence_length_distribution::SequenceLengthDistribution;
 use super::trust_seq::{TrustSeqConfig, TrustSeqErr};
 
 
-//use self::sequence_length_distribution::SequenceLengthDistribution;
+
 //use self::over_represented_seqs::OverRepresentedSeqs;
 
 pub fn create_qcmodules<'a>(config: &'a TrustSeqConfig) -> Vec<Box<QCModule + 'a>> {
@@ -44,7 +45,7 @@ pub fn create_qcmodules<'a>(config: &'a TrustSeqConfig) -> Vec<Box<QCModule + 'a
     modules.push(Box::new(PerBaseSequenceContent::new(config)));
     modules.push(Box::new(PerSequenceGCContents::new(config)));
     modules.push(Box::new(NContent::new(config)));
-    //    modules.push(Box::new(SequenceLengthDistribution::new()));
+    modules.push(Box::new(SequenceLengthDistribution::new(config)));
     //    modules.push(Box::new(OverRepresentedSeqs::new()));
     return modules;
 }
