@@ -44,6 +44,7 @@ pub struct TrustSeqConfig {
     pub contaminant_file: Option<String>,
     pub adapter_file: Option<String>,
     pub module_config: ModuleConfig,
+    pub files: Vec<String>,
 }
 #[test]
 fn test_get_fastqc_config() {
@@ -52,7 +53,7 @@ fn test_get_fastqc_config() {
     println!("{:?}", result);
 }
 impl TrustSeqConfig {
-    fn get_fastqc_config(args: &Vec<String>) -> Result<TrustSeqConfig, TrustSeqErr> {
+    pub fn get_fastqc_config(args: &Vec<String>) -> Result<TrustSeqConfig, TrustSeqErr> {
         let mut opts = Options::new();
         opts.optflag("h", "help", "print this help menu");
         opts.optopt("c",
@@ -82,6 +83,11 @@ impl TrustSeqConfig {
             let f = File::open(l_path)?;
             config.module_config.load(BufReader::new(f))?;
         }
+        if matches.free.len() <= 0 {
+            return Err(TrustSeqErr::Io((io::Error::new(ErrorKind::NotFound,
+                                                       format!("missing orepand")))));
+        }
+        config.files = matches.free;
         return Ok(config);
     }
     pub fn new() -> TrustSeqConfig {
@@ -97,6 +103,7 @@ impl TrustSeqConfig {
                    contaminant_file: None,
                    adapter_file: None,
                    module_config: ModuleConfig::new(),
+                   files: Vec::new(),
                };
     }
 }

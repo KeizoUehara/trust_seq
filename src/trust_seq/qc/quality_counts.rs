@@ -39,7 +39,6 @@ impl QualityCounts {
         let mut count: u32 = 0;
         let mut total: f64 = 0.0;
         for i in (group.lower_count - 1)..group.upper_count {
-            println!("{} {}", i, self.counts[i].total_count);
             if self.counts[i].total_count > 100 {
                 count += 1;
                 total += self.counts[i].get_percentile(offset, percentile) as f64;

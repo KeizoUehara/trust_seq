@@ -6,6 +6,7 @@ use serde_json::value;
 use trust_seq::utils::Sequence;
 use trust_seq::trust_seq::{TrustSeqConfig, TrustSeqErr};
 use trust_seq::qc::QCModule;
+use trust_seq::qc::QCResult;
 use trust_seq::qc::PhreadEncoding;
 use trust_seq::qc::quality_counts::QualityCounts;
 use trust_seq::group::BaseGroup;
@@ -15,10 +16,11 @@ pub struct PerBaseQualityScores<'a> {
     max_char: u8,
     qualities: QualityCounts,
     config: &'a TrustSeqConfig,
+    report: Option<PerBaseQualityReport>,
 }
 #[derive(Serialize)]
 struct PerBaseQualityReport {
-    status: String,
+    status: QCResult,
     quality_data: Vec<Quality>,
 }
 #[derive(Serialize)]
@@ -40,60 +42,67 @@ impl<'a> PerBaseQualityScores<'a> {
                    min_char: 255,
                    max_char: 0,
                    config: config,
+                   report: None,
                };
-    }
-    fn get_qualitys(&self) -> Result<PerBaseQualityReport, TrustSeqErr> {
-        let encode = PhreadEncoding::get_phread_encoding(self.min_char)?;
-        let offset = encode.offset as u32;
-        let mut v = Vec::new();
-        let groups = BaseGroup::make_base_groups(&self.config.group_type, self.qualities.len());
-        for (idx, group) in groups.iter().enumerate() {
-            v.push(Quality {
-                       lower_base: group.lower_count,
-                       upper_base: group.upper_count,
-                       mean: self.qualities.get_mean(group, offset),
-                       median: self.qualities.get_percentile(group, offset, 50),
-                       lower_quartile: self.qualities.get_percentile(group, offset, 25),
-                       upper_quartile: self.qualities.get_percentile(group, offset, 75),
-                       percentile_10: self.qualities.get_percentile(group, offset, 10),
-                       percentile_90: self.qualities.get_percentile(group, offset, 90),
-                   });
-        }
-        return Ok(PerBaseQualityReport {
-                      status: self.get_status().to_string(),
-                      quality_data: v,
-                  });
     }
 }
 impl<'a> QCModule for PerBaseQualityScores<'a> {
     fn get_name(&self) -> &'static str {
         return "Per base sequence quality";
     }
-    fn is_error(&self) -> bool {
-        let encode = PhreadEncoding::get_phread_encoding(self.min_char).unwrap();
+    fn calculate(&mut self) -> Result<(), TrustSeqErr> {
+        let encode = PhreadEncoding::get_phread_encoding(self.min_char)?;
         let offset = encode.offset as u32;
-        let lower_th = self.config
+        let mut v = Vec::new();
+        let groups = BaseGroup::make_base_groups(&self.config.group_type, self.qualities.len());
+        let mut min_quartile: f64 = 1000.0;
+        let mut min_median: f64 = 1000.0;
+        for group in &groups {
+            let lower_quartile = self.qualities.get_percentile(group, offset, 25);
+            let median = self.qualities.get_percentile(group, offset, 50);
+            v.push(Quality {
+                       lower_base: group.lower_count,
+                       upper_base: group.upper_count,
+                       mean: self.qualities.get_mean(group, offset),
+                       median: median,
+                       lower_quartile: lower_quartile,
+                       upper_quartile: self.qualities.get_percentile(group, offset, 75),
+                       percentile_10: self.qualities.get_percentile(group, offset, 10),
+                       percentile_90: self.qualities.get_percentile(group, offset, 90),
+                   });
+            min_median = min_median.min(median);
+            min_quartile = min_quartile.min(lower_quartile);
+        }
+        let lower_error_th = self.config
             .module_config
-            .get("quality_base_lower:error") as u32;
-        let median_th = self.config
+            .get("quality_base_lower:error");
+        let median_error_th = self.config
             .module_config
-            .get("quality_base_median:error") as u32;
+            .get("quality_base_median:error");
+        let lower_warn_th = self.config.module_config.get("quality_base_lower:warn");
+        let median_warn_th = self.config
+            .module_config
+            .get("quality_base_median:warn");
+        let status = if min_median < median_error_th || min_quartile < lower_error_th {
+            QCResult::fail
+        } else if min_median < median_warn_th || min_quartile < lower_warn_th {
+            QCResult::warn
+        } else {
+            QCResult::pass
+        };
+        self.report = Some(PerBaseQualityReport {
+                               status: status,
+                               quality_data: v,
+                           });
+        return Ok(());
+    }
+    fn get_status(&self) -> QCResult {
+        return self.report.as_ref().unwrap().status;
+    }
 
-        return !(self.qualities.get_min_percentile(offset, 10) < lower_th ||
-                 self.qualities.get_min_percentile(offset, 50) < median_th);
-    }
-    fn is_warn(&self) -> bool {
-        let encode = PhreadEncoding::get_phread_encoding(self.min_char).unwrap();
-        let offset = encode.offset as u32;
-        let lower_th = self.config.module_config.get("quality_base_lower:warn") as u32;
-        let median_th = self.config
-            .module_config
-            .get("quality_base_median:warn") as u32;
-        return !(self.qualities.get_min_percentile(offset, 10) < lower_th ||
-                 self.qualities.get_min_percentile(offset, 50) < median_th);
-    }
     fn process_sequence(&mut self, seq: &Sequence) -> () {
         let len = seq.quality.len();
+
         self.qualities.ensure_size(len);
         for (idx, ch) in seq.quality.iter().enumerate() {
             self.min_char = cmp::min(self.min_char, *ch);
@@ -102,12 +111,12 @@ impl<'a> QCModule for PerBaseQualityScores<'a> {
         }
     }
     fn to_json(&self) -> Result<Value, TrustSeqErr> {
-        let report = self.get_qualitys()?;
+        let report = self.report.as_ref().unwrap();
         return Ok(value::to_value(&report)?);
     }
     fn print_text_report(&self, writer: &mut Write) -> Result<(), TrustSeqErr> {
-        let vals = self.get_qualitys()?;
-        for q in vals.quality_data {
+        let vals = self.report.as_ref().unwrap();
+        for q in &vals.quality_data {
             if q.lower_base == q.upper_base {
                 write!(writer,
                        "{}\t{}\t{}\t{}\t{}\t{}\t{}\n",

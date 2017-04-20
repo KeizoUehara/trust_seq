@@ -10,31 +10,43 @@ use serde_json::value::Value;
 use serde_json::value;
 use trust_seq::utils::Sequence;
 use trust_seq::trust_seq::{TrustSeqConfig, TrustSeqErr};
-use trust_seq::qc::QCModule;
+use trust_seq::qc::{QCModule,QCResult};
 use trust_seq::qc::PhreadEncoding;
-use trust_seq::qc::QualityCount;
+use trust_seq::qc::quality_counts::QualityCounts;
 use trust_seq::group::BaseGroup;
 
 pub struct PerTileQualityScores<'a> {
     ignore_in_report: bool,
     total_count: u64,
     id_position: i32,
+    current_length: usize,
     min_char: u8,
     max_char: u8,
-    quality_counts: HashMap<u32, Vec<QualityCount>>,
+    quality_counts: HashMap<u32, QualityCounts>,
     config: &'a TrustSeqConfig,
+    report: Option<PerTileQualityReport>
 }
 
+#[derive(Serialize)]
+struct PerTileQualityReport {
+    status: QCResult,
+    tiles: Vec<u32>,
+    groups: Vec<BaseGroup>,
+    qualities: Vec<Vec<f64>>
+}
 impl<'a> PerTileQualityScores<'a> {
     pub fn new(config: &'a TrustSeqConfig) -> PerTileQualityScores {
         return PerTileQualityScores {
-                   ignore_in_report: false,
-                   id_position: -1,
-                   quality_counts: HashMap::new(),
-                   min_char: 255,
-                   max_char: 0,
-                   config: config,
-               };
+            total_count:0,
+            ignore_in_report: false,
+            id_position: -1,
+            quality_counts: HashMap::new(),
+            min_char: 255,
+            max_char: 0,
+            current_length: 0,
+            config: config,
+            report: None,
+        };
     }
 }
 impl<'a> QCModule for PerTileQualityScores<'a> {
@@ -46,8 +58,12 @@ impl<'a> QCModule for PerTileQualityScores<'a> {
             return;
         }
         self.total_count += 1;
-        let mut tile: i32 = 0;
-        let id_str = str::from_utf8_unchecked(seq.id);
+        if self.total_count % 10 != 0 {
+            return;
+        }
+        let id_str = unsafe {
+            str::from_utf8_unchecked(seq.id)
+        };
         let split_ids: Vec<&str> = id_str.split(":").collect();
         if self.id_position < 0 {
             if split_ids.len() >= 7 {
@@ -58,10 +74,11 @@ impl<'a> QCModule for PerTileQualityScores<'a> {
                 self.ignore_in_report = true;
                 return;
             }
-        }
+        } 
+        let tile: i32;
         match i32::from_str(split_ids[self.id_position as usize]) {
             Ok(v) => tile = v,
-            Err(e) => {
+            Err(_) => {
                 self.ignore_in_report = true;
                 return;
             }
@@ -72,45 +89,78 @@ impl<'a> QCModule for PerTileQualityScores<'a> {
                 self.ignore_in_report = true;
                 return;
             }
+            self.quality_counts.insert(tile as u32,QualityCounts::new());
         }
-        let len = seq.quality.len();
-        if self.quality_counts.len() < len {
-            self.quality_counts.resize(len, QualityCount::new());
-        }
+        let q = self.quality_counts.get_mut(&(tile as u32)).unwrap();
+        q.ensure_size(seq.quality.len());
+        self.current_length = cmp::max(self.current_length,seq.quality.len());
         for (idx, ch) in seq.quality.iter().enumerate() {
             self.min_char = cmp::min(self.min_char, *ch);
             self.max_char = cmp::max(self.max_char, *ch);
-            self.quality_counts[idx].add_value(*ch as usize);
+            
+            q.add_value(idx,*ch);
         }
     }
+    fn calculate(&mut self) -> Result<(), TrustSeqErr>{
+        let encode = PhreadEncoding::get_phread_encoding(self.min_char).unwrap();
+        let offset = encode.offset as u32;
+        let groups = BaseGroup::make_base_groups(&self.config.group_type, self.current_length);
+        let mut tile_numbers : Vec<u32> = self.quality_counts.keys().map(|x:&u32| *x).collect();
+        tile_numbers.sort();
+        let mut means : Vec<Vec<f64>> = Vec::new();
+        means.resize(tile_numbers.len(),Vec::new());
+        let mut average_qualities_per_group:Vec<f64> = Vec::new();
+        average_qualities_per_group.resize(groups.len(),0.0);
+        for (t_idx,tile) in tile_numbers.iter().enumerate(){
+            let mut mean:Vec<f64> = Vec::new();
+            let q_c = self.quality_counts.get(tile).unwrap();
+            mean.resize(groups.len(),0.0);
+            for (idx,group) in groups.iter().enumerate() {
+                mean[idx] = q_c.get_mean(group,offset);
+                average_qualities_per_group[idx] += mean[idx];
+            }
+            means[t_idx] = mean;
+        }
+
+        for v in &mut average_qualities_per_group{
+            *v /= tile_numbers.len() as f64;
+        }
+        let mut max_deviation:f64 = 0.0;
+        for idx in 0..groups.len(){
+            for mean in &mut means{
+                mean[idx] -= average_qualities_per_group[idx];
+                max_deviation = max_deviation.max(mean[idx]);
+            }
+        }
+        let status = if max_deviation > self.config.module_config.get("tile:error"){
+            QCResult::fail
+        }else if  max_deviation > self.config.module_config.get("tile:warn"){
+            QCResult::warn
+        }else{
+            QCResult::pass
+        };
+        self.report = Some(PerTileQualityReport{
+            status: status,
+            tiles: tile_numbers,
+            groups: groups,
+            qualities: means
+        });
+        return Ok(());
+    }
     fn to_json(&self) -> Result<Value, TrustSeqErr> {
-        let report = self.get_qualitys()?;
+        let report = self.report.as_ref().unwrap();
         return Ok(value::to_value(&report)?);
     }
     fn print_text_report(&self, writer: &mut Write) -> Result<(), TrustSeqErr> {
-        let vals = self.get_qualitys()?;
-        for q in vals.quality_data {
-            if q.lower_base == q.upper_base {
-                write!(writer,
-                       "{}\t{}\t{}\t{}\t{}\t{}\t{}\n",
-                       q.lower_base,
-                       q.mean,
-                       q.median,
-                       q.lower_quartile,
-                       q.upper_quartile,
-                       q.percentile_10,
-                       q.percentile_90)?;
-            } else {
-                write!(writer,
-                       "{}-{}\t{}\t{}\t{}\t{}\t{}\t{}\n",
-                       q.lower_base,
-                       q.upper_base,
-                       q.mean,
-                       q.median,
-                       q.lower_quartile,
-                       q.upper_quartile,
-                       q.percentile_10,
-                       q.percentile_90)?;
+        let report = self.report.as_ref().unwrap();
+        write!(writer,"Tile\tBase\tMean\n")?;
+        for (idx,tile) in report.tiles.iter().enumerate(){
+            for (group_idx,group) in report.groups.iter().enumerate(){
+                if group.lower_count == group.upper_count {
+                    writeln!(writer,"{}\t{}\t{}",tile,group.lower_count,report.qualities[idx][group_idx])?;
+                }else{
+                    writeln!(writer,"{}\t{}-{}\t{}",tile,group.lower_count,group.upper_count,report.qualities[idx][group_idx])?;
+                }
             }
         }
         return Ok(());

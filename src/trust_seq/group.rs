@@ -1,4 +1,6 @@
 use std::cmp;
+
+#[derive(Serialize)]
 pub struct BaseGroup {
     pub lower_count: usize,
     pub upper_count: usize,
@@ -45,7 +47,7 @@ impl BaseGroup {
             let end_pos = cmp::min(start_pos + interval - 1, max_len);
             v.push(BaseGroup {
                        lower_count: start_pos,
-                       upper_count: start_pos + interval - 1,
+                       upper_count: end_pos,
                    });
             start_pos += interval;
         }
@@ -103,6 +105,7 @@ mod tests {
     }
     #[test]
     fn test_linear_group() {
+        check_base_groups(GroupType::linear, 70, 70);
         check_base_groups(GroupType::linear, 75, 75);
         check_base_groups(GroupType::linear, 76, 43);
         check_base_groups(GroupType::linear, 100, 55);

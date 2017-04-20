@@ -5,11 +5,10 @@ use serde_json::value;
 use serde_json::map::Map;
 use trust_seq::trust_seq::{TrustSeqConfig, TrustSeqErr};
 use trust_seq::utils::Sequence;
-use trust_seq::qc::QCModule;
+use trust_seq::qc::{QCModule, QCResult};
 use trust_seq::qc::PhreadEncoding;
 use std::collections::BTreeMap;
 
-#[derive(Debug)]
 pub struct BasicStats {
     actual_count: u64,
     filtered_count: u64,
@@ -17,7 +16,9 @@ pub struct BasicStats {
     max_length: u32,
     lowest_char: u8,
     gatcn_count: [u64; 5],
+    report: Option<BasicStatsReport>,
 }
+
 impl BasicStats {
     pub fn new() -> BasicStats {
         return BasicStats {
@@ -27,13 +28,14 @@ impl BasicStats {
                    max_length: 0,
                    lowest_char: 255,
                    gatcn_count: [0; 5],
+                   report: None,
                };
     }
 }
 
 #[derive(Serialize)]
 struct BasicStatsReport {
-    status: String,
+    status: QCResult,
     encoding: String,
     total_sequence: u64,
     filtered_sequence: u64,
@@ -41,32 +43,30 @@ struct BasicStatsReport {
     sequence_max_length: u32,
     gc_percent: u32,
 }
-impl BasicStats {
-    fn get_reports(&self) -> Result<BasicStatsReport, TrustSeqErr> {
-        let encoding = PhreadEncoding::get_phread_encoding(self.lowest_char)?;
-        let gc_count = self.gatcn_count[0] + self.gatcn_count[3];
-        let at_count = self.gatcn_count[1] + self.gatcn_count[2];
-        return Ok(BasicStatsReport {
-                      status: self.get_status().to_string(),
-                      encoding: encoding.name.to_string(),
-                      total_sequence: self.actual_count,
-                      filtered_sequence: self.filtered_count,
-                      sequence_min_length: self.max_length,
-                      sequence_max_length: self.min_length,
-                      gc_percent: ((gc_count * 100) / (gc_count + at_count)) as u32,
-                  });
-    }
-}
 impl QCModule for BasicStats {
     fn get_name(&self) -> &'static str {
         return "Basic Statistics";
     }
+    fn calculate(&mut self) -> Result<(), TrustSeqErr> {
+        let encoding = PhreadEncoding::get_phread_encoding(self.lowest_char)?;
+        let gc_count = self.gatcn_count[0] + self.gatcn_count[3];
+        let at_count = self.gatcn_count[1] + self.gatcn_count[2];
+        self.report = Some(BasicStatsReport {
+                               status: self.get_status(),
+                               encoding: encoding.name.to_string(),
+                               total_sequence: self.actual_count,
+                               filtered_sequence: self.filtered_count,
+                               sequence_min_length: self.max_length,
+                               sequence_max_length: self.min_length,
+                               gc_percent: ((gc_count * 100) / (gc_count + at_count)) as u32,
+                           });
+        return Ok(());
+    }
     fn to_json(&self) -> Result<Value, TrustSeqErr> {
-        let report: BasicStatsReport = self.get_reports()?;
-        return Ok(value::to_value(&report)?);
+        return return Ok(value::to_value(self.report.as_ref().unwrap())?);
     }
     fn print_text_report(&self, writer: &mut Write) -> Result<(), TrustSeqErr> {
-        let j = self.get_reports()?;
+        let j = self.report.as_ref().unwrap();
         write!(writer, "Encoding\t{}\n", j.encoding)?;
         write!(writer, "Total Sequences\t{}\n", j.total_sequence)?;
         write!(writer, "Filtered Sequences\t{}\n", j.filtered_sequence)?;
