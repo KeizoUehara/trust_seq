@@ -1,7 +1,6 @@
 use std::io::Read;
 use std::boxed::Box;
 use std::io::Result;
-use std::fs::File;
 use std::option::Option;
 use std::io::Error;
 use std::io::ErrorKind;

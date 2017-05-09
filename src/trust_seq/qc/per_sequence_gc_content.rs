@@ -1,21 +1,19 @@
 use std::io::Write;
 use std::f64;
 use std::slice::Iter;
-use std::borrow::Borrow;
 use serde_json::value;
+use serde_json::map::Map;
 use serde_json::value::Value;
 use std::collections::hash_map::HashMap;
 use trust_seq::trust_seq::{TrustSeqConfig, TrustSeqErr};
 use trust_seq::gc_model::GCModel;
 use trust_seq::utils::Sequence;
-use trust_seq::qc::{QCModule, QCResult};
-use trust_seq::qc::PhreadEncoding;
+use trust_seq::qc::{QCModule, QCResult, QCReport};
 
 pub struct PerSequenceGCContents<'a> {
     config: &'a TrustSeqConfig,
     gc_distribution: [f64; 101],
     gc_models: HashMap<usize, Box<GCModel>>,
-    report: Option<PerSequenceGCReport>,
 }
 #[derive(Serialize)]
 struct PerSequenceGCReport {
@@ -31,7 +29,6 @@ impl<'a> PerSequenceGCContents<'a> {
                    config: config,
                    gc_distribution: [0f64; 101],
                    gc_models: HashMap::new(),
-                   report: None,
                };
     }
 }
@@ -59,18 +56,30 @@ fn calc_stddev_total(values: Iter<f64>, mode: f64) -> (f64, f64) {
         stddev += (i as f64 - mode).powi(2) * (*v);
         total_count += *v;
     }
-    stddev /= (total_count - 1f64);
+    stddev /= total_count - 1f64;
     (stddev.sqrt(), total_count)
 }
-impl<'a> QCModule for PerSequenceGCContents<'a> {
+impl QCReport for PerSequenceGCReport {
     fn get_name(&self) -> &'static str {
         return "Per sequence GC content";
     }
-    fn to_json(&self) -> Result<Value, TrustSeqErr> {
-        let report = self.report.as_ref().unwrap();
-        return Ok(value::to_value(&report)?);
+    fn get_status(&self) -> QCResult {
+        return self.status;
     }
-    fn calculate(&mut self) -> Result<(), TrustSeqErr> {
+    fn add_json(&self, map: &mut Map<String, Value>) -> Result<(), TrustSeqErr> {
+        map.insert(self.get_name().to_string(), value::to_value(self)?);
+        return Ok(());
+    }
+    fn print_text_report(&self, writer: &mut Write) -> Result<(), TrustSeqErr> {
+        writeln!(writer, "#GC Content\tCount")?;
+        for idx in 0..101 {
+            writeln!(writer, "{}\t{}", idx, self.gc_distribution[idx])?;
+        }
+        return Ok(());
+    }
+}
+impl<'a> QCModule for PerSequenceGCContents<'a> {
+    fn calculate(&self, reports: &mut Vec<Box<QCReport>>) -> Result<(), TrustSeqErr> {
         let mode = self.gc_distribution
             .iter()
             .enumerate()
@@ -83,7 +92,6 @@ impl<'a> QCModule for PerSequenceGCContents<'a> {
         let mut fell_off_bottom = true;
         for idx in (mode.0)..self.gc_distribution.len() {
             if self.gc_distribution[idx] > mode_th {
-                println!("mode idx={}, value={}", idx, self.gc_distribution[idx]);
                 mode_total += idx;
                 mode_count += 1;
             } else {
@@ -93,7 +101,6 @@ impl<'a> QCModule for PerSequenceGCContents<'a> {
         }
         for idx in (0..mode.0).rev() {
             if self.gc_distribution[idx] > mode_th {
-                println!("mode idx={}, value={}", idx, self.gc_distribution[idx]);
                 mode_total += idx;
                 mode_count += 1;
             } else {
@@ -109,7 +116,6 @@ impl<'a> QCModule for PerSequenceGCContents<'a> {
         let (stddev, total_count) = calc_stddev_total(self.gc_distribution.iter(), mode2);
         let mut theoretical_distribution = [0.0 as f64; 101];
         let mut deviation_percent = 0.0;
-        println!("stddev={},mode={}", stddev, mode2);
         for (i, v) in theoretical_distribution.iter_mut().enumerate() {
             *v = calc_zscore_for_value(mode2, stddev, i as f64) * total_count;
             deviation_percent += (*v - self.gc_distribution[i]).abs();
@@ -119,30 +125,23 @@ impl<'a> QCModule for PerSequenceGCContents<'a> {
         let warn_th = self.config.module_config.get("gc_sequence:warn");
 
         let status = if deviation_percent > error_th {
-            QCResult::fail
+            QCResult::Fail
         } else if deviation_percent > warn_th {
-            QCResult::warn
+            QCResult::Warn
         } else {
-            QCResult::pass
+            QCResult::Pass
         };
-        self.report = Some(PerSequenceGCReport {
-                               status: status,
-                               gc_distribution: self.gc_distribution.to_vec(),
-                               theoretical_distribution: theoretical_distribution.to_vec(),
-                           });
-        return Ok(());
-    }
-    fn print_text_report(&self, writer: &mut Write) -> Result<(), TrustSeqErr> {
-        writeln!(writer, "#GC Content\tCount")?;
-        for idx in 0..101 {
-            writeln!(writer, "{}\t{}", idx, self.gc_distribution[idx])?;
-        }
+        reports.push(Box::new(PerSequenceGCReport {
+                                  status: status,
+                                  gc_distribution: self.gc_distribution.to_vec(),
+                                  theoretical_distribution: theoretical_distribution.to_vec(),
+                              }));
         return Ok(());
     }
     fn process_sequence(&mut self, seq: &Sequence) -> () {
         let mut gc_count: usize = 0;
         let sequence = truncate_sequence(seq.sequence);
-        for s in seq.sequence {
+        for s in sequence {
             let ch = *s as char;
             let is_gc = match ch {
                 'G' => true,

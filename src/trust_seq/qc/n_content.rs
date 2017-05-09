@@ -1,16 +1,16 @@
 use std::io::Write;
 use serde_json::value;
 use serde_json::value::Value;
+use serde_json::map::Map;
 use trust_seq::group::BaseGroup;
 use trust_seq::trust_seq::{TrustSeqConfig, TrustSeqErr};
 use trust_seq::utils::Sequence;
-use trust_seq::qc::{QCModule, QCResult};
+use trust_seq::qc::{QCModule, QCResult, QCReport};
 
 pub struct NContent<'a> {
     config: &'a TrustSeqConfig,
     n_counts: Vec<u64>,
     not_n_counts: Vec<u64>,
-    report: Option<NContentReport>,
 }
 #[derive(Serialize)]
 struct NContentReport {
@@ -24,16 +24,40 @@ impl<'a> NContent<'a> {
                    config: config,
                    n_counts: Vec::new(),
                    not_n_counts: Vec::new(),
-                   report: None,
                };
     }
 }
-
-impl<'a> QCModule for NContent<'a> {
+impl QCReport for NContentReport {
     fn get_name(&self) -> &'static str {
         "Per base N content"
     }
-    fn calculate(&mut self) -> Result<(), TrustSeqErr> {
+    fn get_status(&self) -> QCResult {
+        return self.status;
+    }
+    fn add_json(&self, map: &mut Map<String, Value>) -> Result<(), TrustSeqErr> {
+        map.insert(self.get_name().to_string(), value::to_value(&self)?);
+        return Ok(());
+    }
+
+    fn print_text_report(&self, writer: &mut Write) -> Result<(), TrustSeqErr> {
+        writeln!(writer, "#Base\tN-Count")?;
+        for idx in 0..self.groups.len() {
+            let group = &self.groups[idx];
+            if group.lower_count == group.upper_count {
+                writeln!(writer, "{}\t{}", group.lower_count, self.percentages[idx])?;
+            } else {
+                writeln!(writer,
+                         "{}-{}\t{}",
+                         group.lower_count,
+                         group.upper_count,
+                         self.percentages[idx])?;
+            }
+        }
+        return Ok(());
+    }
+}
+impl<'a> QCModule for NContent<'a> {
+    fn calculate(&self, reports: &mut Vec<Box<QCReport>>) -> Result<(), TrustSeqErr> {
         let mut percentages: Vec<f64> = Vec::new();
         let mut max_percentage: f64 = 0.0;
         let groups = BaseGroup::make_base_groups(&self.config.group_type, self.n_counts.len());
@@ -52,44 +76,19 @@ impl<'a> QCModule for NContent<'a> {
         let error_th = self.config.module_config.get("n_content:error");
         let warn_th = self.config.module_config.get("n_content:warn");
         let status = if max_percentage > error_th {
-            QCResult::fail
+            QCResult::Fail
         } else if max_percentage > warn_th {
-            QCResult::warn
+            QCResult::Warn
         } else {
-            QCResult::pass
+            QCResult::Pass
         };
-        self.report = Some(NContentReport {
-                               status: status,
-                               groups: groups,
-                               percentages: percentages,
-                           });
+        reports.push(Box::new(NContentReport {
+                                  status: status,
+                                  groups: groups,
+                                  percentages: percentages,
+                              }));
         return Ok(());
 
-    }
-    fn get_status(&self) -> QCResult {
-        return self.report.as_ref().unwrap().status;
-    }
-    fn to_json(&self) -> Result<Value, TrustSeqErr> {
-        let report = self.report.as_ref().unwrap();
-        return Ok(value::to_value(&report)?);
-    }
-
-    fn print_text_report(&self, writer: &mut Write) -> Result<(), TrustSeqErr> {
-        writeln!(writer, "#Base\tN-Count")?;
-        let report = self.report.as_ref().unwrap();
-        for idx in 0..report.groups.len() {
-            let group = &report.groups[idx];
-            if group.lower_count == group.upper_count {
-                writeln!(writer, "{}\t{}", group.lower_count, report.percentages[idx])?;
-            } else {
-                writeln!(writer,
-                         "{}-{}\t{}",
-                         group.lower_count,
-                         group.upper_count,
-                         report.percentages[idx])?;
-            }
-        }
-        return Ok(());
     }
     fn process_sequence(&mut self, seq: &Sequence) -> () {
         let len = seq.sequence.len();

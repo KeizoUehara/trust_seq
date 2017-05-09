@@ -2,7 +2,6 @@ use trust_seq::utils;
 use std::io::BufRead;
 use std::vec::Vec;
 use std::cmp;
-use std::cmp::Ordering;
 
 
 #[derive(Debug,Clone,Copy)]
@@ -175,7 +174,6 @@ impl Contaminant {
                                                 length: h.length,
                                                 percent_id: pid as u32,
                                             });
-                            println!("con = {},hit={:?}", self.name, h);
                             best_len = h.length;
                         }
                     }

@@ -1,16 +1,15 @@
 use std::io::Write;
 use std::cmp;
 use serde_json::value;
+use serde_json::map::Map;
 use serde_json::value::Value;
-use trust_seq::group::BaseGroup;
 use trust_seq::trust_seq::{TrustSeqConfig, TrustSeqErr};
 use trust_seq::utils::Sequence;
-use trust_seq::qc::{QCModule, QCResult};
+use trust_seq::qc::{QCModule, QCResult, QCReport};
 
 pub struct SequenceLengthDistribution<'a> {
     config: &'a TrustSeqConfig,
     length_counts: Vec<u64>,
-    report: Option<SequenceLengthReport>,
 }
 #[derive(Serialize)]
 struct SequenceLengthReport {
@@ -22,7 +21,6 @@ impl<'a> SequenceLengthDistribution<'a> {
         return SequenceLengthDistribution {
                    config: config,
                    length_counts: Vec::new(),
-                   report: None,
                };
     }
 }
@@ -63,19 +61,35 @@ fn get_size_distribution(min: usize, max: usize) -> (usize, usize) {
     let base_div = min / interval;
     return (base_div * interval, interval);
 }
-impl<'a> QCModule for SequenceLengthDistribution<'a> {
+impl QCReport for SequenceLengthReport {
     fn get_name(&self) -> &'static str {
         return "Sequence Length Distribution";
     }
     fn get_status(&self) -> QCResult {
-        return self.report.as_ref().unwrap().status;
+        return self.status;
     }
-    fn to_json(&self) -> Result<Value, TrustSeqErr> {
-        let report = self.report.as_ref().unwrap();
-        return Ok(value::to_value(&report)?);
+    fn add_json(&self, map: &mut Map<String, Value>) -> Result<(), TrustSeqErr> {
+        map.insert(self.get_name().to_string(), value::to_value(&self)?);
+        return Ok(());
     }
-
-    fn calculate(&mut self) -> Result<(), TrustSeqErr> {
+    fn print_text_report(&self, writer: &mut Write) -> Result<(), TrustSeqErr> {
+        writeln!(writer, "#Length Count")?;
+        for value in &self.length_counts {
+            if value.lower_count == value.upper_count {
+                writeln!(writer, "{}\t{}", value.lower_count, value.value)?;
+            } else {
+                writeln!(writer,
+                         "{}-{}\t{}",
+                         value.lower_count,
+                         value.upper_count,
+                         value.value)?;
+            }
+        }
+        return Ok(());
+    }
+}
+impl<'a> QCModule for SequenceLengthDistribution<'a> {
+    fn calculate(&self, reports: &mut Vec<Box<QCReport>>) -> Result<(), TrustSeqErr> {
         let (mut min_len, mut max_len) = get_min_max_idx(&self.length_counts);
         let is_same_length = max_len == min_len;
         //  We put one extra category either side of the actual size
@@ -102,33 +116,16 @@ impl<'a> QCModule for SequenceLengthDistribution<'a> {
         let error_th = self.config.module_config.get("sequence_length:error");
         let warn_th = self.config.module_config.get("sequence_length:warn");
         let status = if error_th != 0.0 && self.length_counts[0] > 0 {
-            QCResult::fail
+            QCResult::Fail
         } else if warn_th != 0.0 && is_same_length {
-            QCResult::warn
+            QCResult::Warn
         } else {
-            QCResult::pass
+            QCResult::Pass
         };
-        self.report = Some(SequenceLengthReport {
-                               status: status,
-                               length_counts: counts,
-                           });
-        return Ok(());
-    }
-    fn print_text_report(&self, writer: &mut Write) -> Result<(), TrustSeqErr> {
-        writeln!(writer, "#Length Count")?;
-        let report = self.report.as_ref().unwrap();
-
-        for value in &report.length_counts {
-            if value.lower_count == value.upper_count {
-                writeln!(writer, "{}\t{}", value.lower_count, value.value)?;
-            } else {
-                writeln!(writer,
-                         "{}-{}\t{}",
-                         value.lower_count,
-                         value.upper_count,
-                         value.value)?;
-            }
-        }
+        reports.push(Box::new(SequenceLengthReport {
+                                  status: status,
+                                  length_counts: counts,
+                              }));
         return Ok(());
     }
     fn process_sequence(&mut self, seq: &Sequence) -> () {

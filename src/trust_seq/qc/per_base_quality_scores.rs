@@ -3,10 +3,10 @@ use std::f64;
 use std::io::Write;
 use serde_json::value::Value;
 use serde_json::value;
+use serde_json::map::Map;
 use trust_seq::utils::Sequence;
 use trust_seq::trust_seq::{TrustSeqConfig, TrustSeqErr};
-use trust_seq::qc::QCModule;
-use trust_seq::qc::QCResult;
+use trust_seq::qc::{QCModule, QCReport, QCResult};
 use trust_seq::qc::PhreadEncoding;
 use trust_seq::qc::quality_counts::QualityCounts;
 use trust_seq::group::BaseGroup;
@@ -16,7 +16,6 @@ pub struct PerBaseQualityScores<'a> {
     max_char: u8,
     qualities: QualityCounts,
     config: &'a TrustSeqConfig,
-    report: Option<PerBaseQualityReport>,
 }
 #[derive(Serialize)]
 struct PerBaseQualityReport {
@@ -42,15 +41,50 @@ impl<'a> PerBaseQualityScores<'a> {
                    min_char: 255,
                    max_char: 0,
                    config: config,
-                   report: None,
                };
     }
 }
-impl<'a> QCModule for PerBaseQualityScores<'a> {
+impl QCReport for PerBaseQualityReport {
     fn get_name(&self) -> &'static str {
         return "Per base sequence quality";
     }
-    fn calculate(&mut self) -> Result<(), TrustSeqErr> {
+    fn get_status(&self) -> QCResult {
+        return self.status;
+    }
+    fn add_json(&self, map: &mut Map<String, Value>) -> Result<(), TrustSeqErr> {
+        map.insert(self.get_name().to_string(), value::to_value(self)?);
+        return Ok(());
+    }
+    fn print_text_report(&self, writer: &mut Write) -> Result<(), TrustSeqErr> {
+        for q in &self.quality_data {
+            if q.lower_base == q.upper_base {
+                write!(writer,
+                       "{}\t{}\t{}\t{}\t{}\t{}\t{}\n",
+                       q.lower_base,
+                       q.mean,
+                       q.median,
+                       q.lower_quartile,
+                       q.upper_quartile,
+                       q.percentile_10,
+                       q.percentile_90)?;
+            } else {
+                write!(writer,
+                       "{}-{}\t{}\t{}\t{}\t{}\t{}\t{}\n",
+                       q.lower_base,
+                       q.upper_base,
+                       q.mean,
+                       q.median,
+                       q.lower_quartile,
+                       q.upper_quartile,
+                       q.percentile_10,
+                       q.percentile_90)?;
+            }
+        }
+        return Ok(());
+    }
+}
+impl<'a> QCModule for PerBaseQualityScores<'a> {
+    fn calculate(&self, reports: &mut Vec<Box<QCReport>>) -> Result<(), TrustSeqErr> {
         let encode = PhreadEncoding::get_phread_encoding(self.min_char)?;
         let offset = encode.offset as u32;
         let mut v = Vec::new();
@@ -84,22 +118,18 @@ impl<'a> QCModule for PerBaseQualityScores<'a> {
             .module_config
             .get("quality_base_median:warn");
         let status = if min_median < median_error_th || min_quartile < lower_error_th {
-            QCResult::fail
+            QCResult::Fail
         } else if min_median < median_warn_th || min_quartile < lower_warn_th {
-            QCResult::warn
+            QCResult::Warn
         } else {
-            QCResult::pass
+            QCResult::Pass
         };
-        self.report = Some(PerBaseQualityReport {
-                               status: status,
-                               quality_data: v,
-                           });
+        reports.push(Box::new(PerBaseQualityReport {
+                                  status: status,
+                                  quality_data: v,
+                              }));
         return Ok(());
     }
-    fn get_status(&self) -> QCResult {
-        return self.report.as_ref().unwrap().status;
-    }
-
     fn process_sequence(&mut self, seq: &Sequence) -> () {
         let len = seq.quality.len();
 
@@ -109,37 +139,5 @@ impl<'a> QCModule for PerBaseQualityScores<'a> {
             self.max_char = cmp::max(self.max_char, *ch);
             self.qualities.add_value(idx, *ch);
         }
-    }
-    fn to_json(&self) -> Result<Value, TrustSeqErr> {
-        let report = self.report.as_ref().unwrap();
-        return Ok(value::to_value(&report)?);
-    }
-    fn print_text_report(&self, writer: &mut Write) -> Result<(), TrustSeqErr> {
-        let vals = self.report.as_ref().unwrap();
-        for q in &vals.quality_data {
-            if q.lower_base == q.upper_base {
-                write!(writer,
-                       "{}\t{}\t{}\t{}\t{}\t{}\t{}\n",
-                       q.lower_base,
-                       q.mean,
-                       q.median,
-                       q.lower_quartile,
-                       q.upper_quartile,
-                       q.percentile_10,
-                       q.percentile_90)?;
-            } else {
-                write!(writer,
-                       "{}-{}\t{}\t{}\t{}\t{}\t{}\t{}\n",
-                       q.lower_base,
-                       q.upper_base,
-                       q.mean,
-                       q.median,
-                       q.lower_quartile,
-                       q.upper_quartile,
-                       q.percentile_10,
-                       q.percentile_90)?;
-            }
-        }
-        return Ok(());
     }
 }

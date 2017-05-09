@@ -2,7 +2,7 @@
 extern crate serde_derive;
 
 extern crate serde_json;
-
+extern crate serde;
 extern crate getopts;
 mod trust_seq;
 

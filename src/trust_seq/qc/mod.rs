@@ -1,3 +1,4 @@
+
 mod basic_stats;
 mod quality_counts;
 mod per_base_quality_scores;
@@ -7,12 +8,8 @@ mod per_base_sequence_content;
 mod per_sequence_gc_content;
 mod n_content;
 mod sequence_length_distribution;
+mod over_represented_seqs;
 
-
-
-
-
-//mod over_represented_seqs;
 use super::utils::Sequence;
 
 use std::io::Write;
@@ -30,11 +27,8 @@ use self::per_base_sequence_content::PerBaseSequenceContent;
 use self::per_sequence_gc_content::PerSequenceGCContents;
 use self::n_content::NContent;
 use self::sequence_length_distribution::SequenceLengthDistribution;
+use self::over_represented_seqs::OverRepresentedSeqs;
 use super::trust_seq::{TrustSeqConfig, TrustSeqErr};
-
-
-
-//use self::over_represented_seqs::OverRepresentedSeqs;
 
 pub fn create_qcmodules<'a>(config: &'a TrustSeqConfig) -> Vec<Box<QCModule + 'a>> {
     let mut modules: Vec<Box<QCModule + 'a>> = Vec::new();
@@ -46,44 +40,54 @@ pub fn create_qcmodules<'a>(config: &'a TrustSeqConfig) -> Vec<Box<QCModule + 'a
     modules.push(Box::new(PerSequenceGCContents::new(config)));
     modules.push(Box::new(NContent::new(config)));
     modules.push(Box::new(SequenceLengthDistribution::new(config)));
-    //    modules.push(Box::new(OverRepresentedSeqs::new()));
+    modules.push(Box::new(OverRepresentedSeqs::new(config)));
     return modules;
 }
 #[derive(Serialize,Debug,Copy,Clone)]
-enum QCResult {
-    pass,
-    warn,
-    fail,
+pub enum QCResult {
+    Pass,
+    Warn,
+    Fail,
 }
 pub trait QCModule {
-    fn get_name(&self) -> &'static str;
     fn ignore_in_report(&self) -> bool {
         return false;
     }
-    fn get_status(&self) -> QCResult {
-        return QCResult::pass;
-    }
     fn process_sequence(&mut self, seq: &Sequence) -> ();
-    fn calculate(&mut self) -> Result<(), TrustSeqErr>;
+    fn calculate(&self, results: &mut Vec<Box<QCReport>>) -> Result<(), TrustSeqErr>;
+}
+
+pub trait QCReport {
+    fn get_status(&self) -> QCResult;
+    fn get_name(&self) -> &'static str;
     fn print_text_report(&self, w: &mut Write) -> Result<(), TrustSeqErr>;
-    fn to_json(&self) -> Result<Value, TrustSeqErr>;
+    fn add_json(&self, map: &mut Map<String, Value>) -> Result<(), TrustSeqErr>;
 }
 pub fn write_text_reports<'a>(modules: &Vec<Box<QCModule + 'a>>,
                               w: &mut Write)
                               -> Result<(), TrustSeqErr> {
+    let mut reports: Vec<Box<QCReport>> = Vec::new();
     for module in modules {
-        writeln!(w, ">>{}\t{:?}", module.get_name(), module.get_status())?;
-        module.print_text_report(w)?;
+        module.calculate(&mut reports)?;
+
+    }
+    for report in reports {
+        writeln!(w, ">>{}\t{:?}", report.get_name(), report.get_status())?;
+        report.print_text_report(w)?;
         writeln!(w, ">>END_MODULE")?;
     }
     return Ok(());
 }
 pub fn get_json_reports<'a>(modules: &Vec<Box<QCModule + 'a>>)
                             -> Result<Map<String, Value>, TrustSeqErr> {
+    let mut reports: Vec<Box<QCReport>> = Vec::new();
     let mut map: Map<String, Value> = Map::new();
     for module in modules {
-        let report = module.to_json()?;
-        map.insert(module.get_name().to_string(), report);
+        module.calculate(&mut reports)?;
+
+    }
+    for report in reports {
+        report.add_json(&mut map)?;
     }
     return Ok(map);
 }

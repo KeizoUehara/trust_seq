@@ -8,9 +8,10 @@ use std::io::Write;
 use std::collections::HashMap;
 use serde_json::value::Value;
 use serde_json::value;
+use serde_json::map::Map;
 use trust_seq::utils::Sequence;
 use trust_seq::trust_seq::{TrustSeqConfig, TrustSeqErr};
-use trust_seq::qc::{QCModule,QCResult};
+use trust_seq::qc::{QCModule,QCResult,QCReport};
 use trust_seq::qc::PhreadEncoding;
 use trust_seq::qc::quality_counts::QualityCounts;
 use trust_seq::group::BaseGroup;
@@ -24,7 +25,6 @@ pub struct PerTileQualityScores<'a> {
     max_char: u8,
     quality_counts: HashMap<u32, QualityCounts>,
     config: &'a TrustSeqConfig,
-    report: Option<PerTileQualityReport>
 }
 
 #[derive(Serialize)]
@@ -45,14 +45,35 @@ impl<'a> PerTileQualityScores<'a> {
             max_char: 0,
             current_length: 0,
             config: config,
-            report: None,
         };
     }
 }
-impl<'a> QCModule for PerTileQualityScores<'a> {
+impl QCReport for PerTileQualityReport{
     fn get_name(&self) -> &'static str {
         return "Per tile sequence quality";
     }
+    fn get_status(&self) -> QCResult{
+        return self.status;
+    }
+    fn add_json(&self,map:&mut Map<String,Value>) -> Result<(), TrustSeqErr> {
+        map.insert(self.get_name().to_string(), value::to_value(&self)?);
+        return Ok(());
+    }
+    fn print_text_report(&self, writer: &mut Write) -> Result<(), TrustSeqErr> {
+        write!(writer,"Tile\tBase\tMean\n")?;
+        for (idx,tile) in self.tiles.iter().enumerate(){
+            for (group_idx,group) in self.groups.iter().enumerate(){
+                if group.lower_count == group.upper_count {
+                    writeln!(writer,"{}\t{}\t{}",tile,group.lower_count,self.qualities[idx][group_idx])?;
+                }else{
+                    writeln!(writer,"{}\t{}-{}\t{}",tile,group.lower_count,group.upper_count,self.qualities[idx][group_idx])?;
+                }
+            }
+        }
+        return Ok(());
+    }
+}
+impl<'a> QCModule for PerTileQualityScores<'a> {
     fn process_sequence(&mut self, seq: &Sequence) -> () {
         if self.ignore_in_report {
             return;
@@ -104,7 +125,7 @@ impl<'a> QCModule for PerTileQualityScores<'a> {
     fn ignore_in_report(&self) -> bool{
         return self.ignore_in_report;
     }
-    fn calculate(&mut self) -> Result<(), TrustSeqErr>{
+    fn calculate(&self,reports:&mut Vec<Box<QCReport>>) -> Result<(), TrustSeqErr>{
         if self.ignore_in_report{
             return Ok(());
         }
@@ -139,36 +160,18 @@ impl<'a> QCModule for PerTileQualityScores<'a> {
             }
         }
         let status = if max_deviation > self.config.module_config.get("tile:error"){
-            QCResult::fail
+            QCResult::Fail
         }else if  max_deviation > self.config.module_config.get("tile:warn"){
-            QCResult::warn
+            QCResult::Warn
         }else{
-            QCResult::pass
+            QCResult::Pass
         };
-        self.report = Some(PerTileQualityReport{
+        reports.push(Box::new(PerTileQualityReport{
             status: status,
             tiles: tile_numbers,
             groups: groups,
             qualities: means
-        });
-        return Ok(());
-    }
-    fn to_json(&self) -> Result<Value, TrustSeqErr> {
-        let report = self.report.as_ref().unwrap();
-        return Ok(value::to_value(&report)?);
-    }
-    fn print_text_report(&self, writer: &mut Write) -> Result<(), TrustSeqErr> {
-        let report = self.report.as_ref().unwrap();
-        write!(writer,"Tile\tBase\tMean\n")?;
-        for (idx,tile) in report.tiles.iter().enumerate(){
-            for (group_idx,group) in report.groups.iter().enumerate(){
-                if group.lower_count == group.upper_count {
-                    writeln!(writer,"{}\t{}\t{}",tile,group.lower_count,report.qualities[idx][group_idx])?;
-                }else{
-                    writeln!(writer,"{}\t{}-{}\t{}",tile,group.lower_count,group.upper_count,report.qualities[idx][group_idx])?;
-                }
-            }
-        }
+        }));
         return Ok(());
     }
 }

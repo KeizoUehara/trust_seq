@@ -3,11 +3,10 @@ use std::io::Write;
 use serde_json::Value;
 use serde_json::value;
 use serde_json::map::Map;
-use trust_seq::trust_seq::{TrustSeqConfig, TrustSeqErr};
+use trust_seq::trust_seq::TrustSeqErr;
 use trust_seq::utils::Sequence;
-use trust_seq::qc::{QCModule, QCResult};
+use trust_seq::qc::{QCModule, QCResult, QCReport};
 use trust_seq::qc::PhreadEncoding;
-use std::collections::BTreeMap;
 
 pub struct BasicStats {
     actual_count: u64,
@@ -16,7 +15,6 @@ pub struct BasicStats {
     max_length: u32,
     lowest_char: u8,
     gatcn_count: [u64; 5],
-    report: Option<BasicStatsReport>,
 }
 
 impl BasicStats {
@@ -28,7 +26,6 @@ impl BasicStats {
                    max_length: 0,
                    lowest_char: 255,
                    gatcn_count: [0; 5],
-                   report: None,
                };
     }
 }
@@ -44,41 +41,19 @@ struct BasicStatsReport {
     gc_percent: u32,
 }
 impl QCModule for BasicStats {
-    fn get_name(&self) -> &'static str {
-        return "Basic Statistics";
-    }
-    fn calculate(&mut self) -> Result<(), TrustSeqErr> {
+    fn calculate(&self, results: &mut Vec<Box<QCReport>>) -> Result<(), TrustSeqErr> {
         let encoding = PhreadEncoding::get_phread_encoding(self.lowest_char)?;
         let gc_count = self.gatcn_count[0] + self.gatcn_count[3];
         let at_count = self.gatcn_count[1] + self.gatcn_count[2];
-        self.report = Some(BasicStatsReport {
-                               status: self.get_status(),
-                               encoding: encoding.name.to_string(),
-                               total_sequence: self.actual_count,
-                               filtered_sequence: self.filtered_count,
-                               sequence_min_length: self.max_length,
-                               sequence_max_length: self.min_length,
-                               gc_percent: ((gc_count * 100) / (gc_count + at_count)) as u32,
-                           });
-        return Ok(());
-    }
-    fn to_json(&self) -> Result<Value, TrustSeqErr> {
-        return return Ok(value::to_value(self.report.as_ref().unwrap())?);
-    }
-    fn print_text_report(&self, writer: &mut Write) -> Result<(), TrustSeqErr> {
-        let j = self.report.as_ref().unwrap();
-        write!(writer, "Encoding\t{}\n", j.encoding)?;
-        write!(writer, "Total Sequences\t{}\n", j.total_sequence)?;
-        write!(writer, "Filtered Sequences\t{}\n", j.filtered_sequence)?;
-        if j.sequence_min_length == j.sequence_max_length {
-            write!(writer, "Sequence length\t{}\n", j.sequence_min_length)?;
-        } else {
-            write!(writer,
-                   "Sequence length\t{}-{}\n",
-                   j.sequence_min_length,
-                   j.sequence_max_length)?;
-        }
-        write!(writer, "%GC\t{}\n", j.gc_percent)?;
+        results.push(Box::new(BasicStatsReport {
+                                  status: QCResult::Pass,
+                                  encoding: encoding.name.to_string(),
+                                  total_sequence: self.actual_count,
+                                  filtered_sequence: self.filtered_count,
+                                  sequence_min_length: self.max_length,
+                                  sequence_max_length: self.min_length,
+                                  gc_percent: ((gc_count * 100) / (gc_count + at_count)) as u32,
+                              }));
         return Ok(());
     }
     fn process_sequence(&mut self, seq: &Sequence) -> () {
@@ -115,5 +90,32 @@ impl QCModule for BasicStats {
                 self.lowest_char = *q;
             }
         }
+    }
+}
+impl QCReport for BasicStatsReport {
+    fn get_name(&self) -> &'static str {
+        return "Basic Statistics";
+    }
+    fn get_status(&self) -> QCResult {
+        return self.status;
+    }
+    fn add_json(&self, map: &mut Map<String, Value>) -> Result<(), TrustSeqErr> {
+        map.insert(self.get_name().to_string(), value::to_value(self)?);
+        return Ok(());
+    }
+    fn print_text_report(&self, writer: &mut Write) -> Result<(), TrustSeqErr> {
+        write!(writer, "Encoding\t{}\n", self.encoding)?;
+        write!(writer, "Total Sequences\t{}\n", self.total_sequence)?;
+        write!(writer, "Filtered Sequences\t{}\n", self.filtered_sequence)?;
+        if self.sequence_min_length == self.sequence_max_length {
+            write!(writer, "Sequence length\t{}\n", self.sequence_min_length)?;
+        } else {
+            write!(writer,
+                   "Sequence length\t{}-{}\n",
+                   self.sequence_min_length,
+                   self.sequence_max_length)?;
+        }
+        write!(writer, "%GC\t{}\n", self.gc_percent)?;
+        return Ok(());
     }
 }

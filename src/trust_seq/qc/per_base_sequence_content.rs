@@ -1,11 +1,12 @@
 use std::io::Write;
 use std::f64;
 use serde_json::value;
+use serde_json::map::Map;
 use serde_json::value::Value;
 use trust_seq::group::BaseGroup;
 use trust_seq::trust_seq::{TrustSeqConfig, TrustSeqErr};
 use trust_seq::utils::Sequence;
-use trust_seq::qc::{QCModule, QCResult};
+use trust_seq::qc::{QCModule, QCResult, QCReport};
 
 pub struct PerBaseSequenceContent<'a> {
     config: &'a TrustSeqConfig,
@@ -27,44 +28,44 @@ impl<'a> PerBaseSequenceContent<'a> {
                };
     }
 }
-
-impl<'a> QCModule for PerBaseSequenceContent<'a> {
+impl QCReport for PerBaseSequenceReport {
     fn get_name(&self) -> &'static str {
         return "Per base sequence content";
     }
     fn get_status(&self) -> QCResult {
-        return self.report.as_ref().unwrap().status;
+        return self.status;
     }
     fn print_text_report(&self, writer: &mut Write) -> Result<(), TrustSeqErr> {
-        let vals = self.report.as_ref().unwrap();
         write!(writer, "#Base\tG\tA\tT\tC\n")?;
-        for (idx, group) in vals.group.iter().enumerate() {
+        for (idx, group) in self.group.iter().enumerate() {
             if group.lower_count == group.upper_count {
                 write!(writer,
                        "{}\t{}\t{}\t{}\t{}\n",
                        group.lower_count,
-                       vals.percents[idx][0],
-                       vals.percents[idx][1],
-                       vals.percents[idx][2],
-                       vals.percents[idx][3])?;
+                       self.percents[idx][0],
+                       self.percents[idx][1],
+                       self.percents[idx][2],
+                       self.percents[idx][3])?;
             } else {
                 write!(writer,
                        "{}-{}\t{}\t{}\t{}\t{}\n",
                        group.lower_count,
                        group.upper_count,
-                       vals.percents[idx][0],
-                       vals.percents[idx][1],
-                       vals.percents[idx][2],
-                       vals.percents[idx][3])?;
+                       self.percents[idx][0],
+                       self.percents[idx][1],
+                       self.percents[idx][2],
+                       self.percents[idx][3])?;
             }
         }
         return Ok(());
     }
-    fn to_json(&self) -> Result<Value, TrustSeqErr> {
-        let report = self.report.as_ref().unwrap();
-        return Ok(value::to_value(&report)?);
+    fn add_json(&self, map: &mut Map<String, Value>) -> Result<(), TrustSeqErr> {
+        map.insert(self.get_name().to_string(), value::to_value(&self)?);
+        return Ok(());
     }
-    fn calculate(&mut self) -> Result<(), TrustSeqErr> {
+}
+impl<'a> QCModule for PerBaseSequenceContent<'a> {
+    fn calculate(&self, reports: &mut Vec<Box<QCReport>>) -> Result<(), TrustSeqErr> {
         let seq_len = self.counts[0].len();
         let groups = BaseGroup::make_base_groups(&self.config.group_type, seq_len);
         let mut percents: Vec<[f64; 4]> = Vec::new();
@@ -79,12 +80,10 @@ impl<'a> QCModule for PerBaseSequenceContent<'a> {
                     total += self.counts[base_idx][pos_idx];
                 }
             }
-            println!("counts={:?}", counts);;
             let percent = [counts[0] as f64 * 100.0 / total as f64,
                            counts[1] as f64 * 100.0 / total as f64,
                            counts[2] as f64 * 100.0 / total as f64,
                            counts[3] as f64 * 100.0 / total as f64];
-            println!("percent={:?}", percent);;
             max_gc_diff = max_gc_diff.max((percent[3] - percent[0]).abs());
             max_at_diff = max_at_diff.max((percent[2] - percent[1]).abs());
             percents.push(percent);
@@ -92,17 +91,17 @@ impl<'a> QCModule for PerBaseSequenceContent<'a> {
         let error_th = self.config.module_config.get("sequence:error");
         let warn_th = self.config.module_config.get("sequence:warn");
         let status = if max_gc_diff > error_th || max_at_diff > error_th {
-            QCResult::fail
+            QCResult::Fail
         } else if max_gc_diff > warn_th || max_at_diff > warn_th {
-            QCResult::warn
+            QCResult::Warn
         } else {
-            QCResult::pass
+            QCResult::Pass
         };
-        self.report = Some(PerBaseSequenceReport {
-                               status: status,
-                               group: groups,
-                               percents: percents,
-                           });
+        reports.push(Box::new(PerBaseSequenceReport {
+                                  status: status,
+                                  group: groups,
+                                  percents: percents,
+                              }));
         return Ok(());
     }
     fn process_sequence(&mut self, seq: &Sequence) -> () {

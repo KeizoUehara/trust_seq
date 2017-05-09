@@ -1,15 +1,15 @@
 use std::io::Write;
 use serde_json::value::Value;
 use serde_json::value;
+use serde_json::map::Map;
 use trust_seq::trust_seq::{TrustSeqConfig, TrustSeqErr};
 use trust_seq::utils::Sequence;
-use trust_seq::qc::{QCModule, QCResult};
+use trust_seq::qc::{QCModule, QCResult, QCReport};
 use trust_seq::qc::PhreadEncoding;
 
 pub struct PerSequenceQualityScores<'a> {
     score_counts: [u64; 128],
     lowest_char: u8,
-    report: Option<PerSequenceQualityReport>,
     config: &'a TrustSeqConfig,
 }
 #[derive(Serialize)]
@@ -22,41 +22,30 @@ impl<'a> PerSequenceQualityScores<'a> {
         return PerSequenceQualityScores {
                    score_counts: [0; 128],
                    lowest_char: 255,
-                   report: None,
                    config: config,
                };
     }
 }
-
-impl<'a> QCModule for PerSequenceQualityScores<'a> {
+impl QCReport for PerSequenceQualityReport {
     fn get_name(&self) -> &'static str {
         return "Per sequence quality scores";
     }
-    fn to_json(&self) -> Result<Value, TrustSeqErr> {
-        let report = self.report.as_ref().unwrap();
-        return Ok(value::to_value(&report)?);
+    fn add_json(&self, map: &mut Map<String, Value>) -> Result<(), TrustSeqErr> {
+        map.insert(self.get_name().to_string(), value::to_value(&self)?);
+        return Ok(());
+    }
+    fn get_status(&self) -> QCResult {
+        return self.status;
     }
     fn print_text_report(&self, writer: &mut Write) -> Result<(), TrustSeqErr> {
-        let mut min_score = 128;
-        let mut max_score = 0;
-        for (score, count) in self.score_counts.iter().enumerate() {
-            if *count > 0 {
-                if min_score == 128 {
-                    min_score = score;
-                }
-                max_score = score;
-            }
-        }
-        let encoding = try!(PhreadEncoding::get_phread_encoding(self.lowest_char));
-        for score in min_score..(max_score + 1) {
-            try!(write!(writer,
-                        "{}\t{}\n",
-                        score - (encoding.offset as usize),
-                        self.score_counts[score]));
+        for val in &self.qualities {
+            write!(writer, "{}\t{}\n", val.0, val.1)?;
         }
         return Ok(());
     }
-    fn calculate(&mut self) -> Result<(), TrustSeqErr> {
+}
+impl<'a> QCModule for PerSequenceQualityScores<'a> {
+    fn calculate(&self, reports: &mut Vec<Box<QCReport>>) -> Result<(), TrustSeqErr> {
         let mut min_score = 128;
         let mut max_score = 0;
         for (score, count) in self.score_counts.iter().enumerate() {
@@ -82,20 +71,17 @@ impl<'a> QCModule for PerSequenceQualityScores<'a> {
         let error_th = self.config.module_config.get("quality_sequence:error");
         let warn_th = self.config.module_config.get("quality_sequence:warn");
         let status = if most_frequence_score > error_th {
-            QCResult::fail
+            QCResult::Fail
         } else if most_frequence_score > warn_th {
-            QCResult::warn
+            QCResult::Warn
         } else {
-            QCResult::pass
+            QCResult::Pass
         };
-        self.report = Some(PerSequenceQualityReport {
-                               status: status,
-                               qualities: qualities,
-                           });
+        reports.push(Box::new(PerSequenceQualityReport {
+                                  status: status,
+                                  qualities: qualities,
+                              }));
         return Ok(());
-    }
-    fn get_status(&self) -> QCResult {
-        return return self.report.as_ref().unwrap().status;
     }
     fn process_sequence(&mut self, seq: &Sequence) -> () {
 

@@ -2,12 +2,14 @@
 extern crate serde_derive;
 
 extern crate serde_json;
+
 extern crate getopts;
 
 use std::fs::File;
 use std::env;
 use serde_json::map::Map;
 use trust_seq::qc;
+use trust_seq::qc::QCReport;
 use trust_seq::utils::FastQReader;
 use trust_seq::trust_seq::TrustSeqConfig;
 mod trust_seq;
@@ -43,12 +45,6 @@ fn main() {
                     println!("Error={}", e);
                     break;
                 }
-            }
-        }
-        for module in &mut modules {
-            if let Err(e) = module.calculate() {
-                println!("Error={:?}", e);
-                return;
             }
         }
         match qc::write_text_reports(&modules, &mut report) {

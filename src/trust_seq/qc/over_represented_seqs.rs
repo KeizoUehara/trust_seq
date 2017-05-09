@@ -1,16 +1,14 @@
 use std::io::Write;
-use std::borrow::Borrow;
 use std::collections::hash_map::HashMap;
 use trust_seq::trust_seq::{TrustSeqConfig, TrustSeqErr};
-use trust_seq::gc_model::GCModel;
 use trust_seq::utils::Sequence;
-use trust_seq::qc::{QCModule, QCResult};
+use trust_seq::qc::{QCModule, QCResult, QCReport};
 use std::io::BufReader;
 use serde_json::value;
 use serde_json::Value;
+use serde_json::map::Map;
 use trust_seq::contaminant::Contaminant;
 use trust_seq::contaminant::find_contaminant;
-use trust_seq::contaminant::ContaminantHit;
 use trust_seq::contaminant_list::CONTAMINANT_LIST;
 
 const OBSERVATION_CUTOFF: usize = 100000;
@@ -22,13 +20,6 @@ pub struct OverRepresentedSeqs<'a> {
     count_at_unique_limit: u64,
     frozen: bool,
     sequences: HashMap<String, u32>,
-    duplication_level: Option<DuplicationLevelModule<'a>>,
-    report: Option<OverRepresentedReport>,
-}
-pub struct DuplicationLevelModule<'a> {
-    config: &'a TrustSeqConfig,
-    over_represented_seqs: &'a OverRepresentedSeqs<'a>,
-    report: Option<DuplicationLevelReport>,
 }
 #[derive(Serialize)]
 struct OverRepresentedReport {
@@ -60,21 +51,14 @@ const DUP_LEVEL_LABELS: [(usize, &'static str); 16] = [(0, "1"),
                                                        (9999, ">10k")];
 impl<'a> OverRepresentedSeqs<'a> {
     pub fn new(config: &'a TrustSeqConfig) -> OverRepresentedSeqs<'a> {
-        let mut m = OverRepresentedSeqs {
-            config: config,
-            count: 0,
-            unique_sequence_count: 0,
-            count_at_unique_limit: 0,
-            frozen: false,
-            duplication_level: None,
-            sequences: HashMap::new(),
-            report: None,
-        };
-        m.duplication_level = Some(DuplicationLevelModule::new(config, &m));
-        return m;
-    }
-    pub fn get_duplication_level(&self) -> &'a QCModule {
-        return &self.duplication_level.unwrap();
+        return OverRepresentedSeqs {
+                   config: config,
+                   count: 0,
+                   unique_sequence_count: 0,
+                   count_at_unique_limit: 0,
+                   frozen: false,
+                   sequences: HashMap::new(),
+               };
     }
 }
 #[derive(Serialize)]
@@ -109,88 +93,72 @@ fn get_corrected_count(count_at_limit: u64,
     }
     return number_of_observations as f64 / (1.0 - p_not_seeing_at_limit);
 }
-impl<'a> DuplicationLevelModule<'a> {
-    pub fn new(config: &'a TrustSeqConfig,
-               over_represented_seqs: &'a OverRepresentedSeqs<'a>)
-               -> DuplicationLevelModule<'a> {
-
-        return DuplicationLevelModule {
-                   config: config,
-                   over_represented_seqs: over_represented_seqs,
-                   report: None,
-               };
+fn calculate_report(over_represented_seqs: &OverRepresentedSeqs)
+                    -> Result<DuplicationLevelReport, TrustSeqErr> {
+    let mut deduplicated_percentages: [f64; 16] = [0.0; 16];
+    let mut total_percentages: [f64; 16] = [0.0; 16];
+    let mut collated_counts: HashMap<u32, u32> = HashMap::new();
+    for count in over_represented_seqs.sequences.values() {
+        let c = collated_counts.entry(*count).or_insert(0);
+        *c += 1;
     }
+    let mut corrected_counts: HashMap<u32, f64> = HashMap::new();
+    for (dup_level, count) in &collated_counts {
+        corrected_counts.insert(*dup_level,
+                                get_corrected_count(over_represented_seqs.count_at_unique_limit,
+                                                    over_represented_seqs.count,
+                                                    *dup_level as u64,
+                                                    *count as u64));
+    }
+    let mut dedup_total: f64 = 0.0;
+    let mut row_total: f64 = 0.0;
+    for (dl, c) in &corrected_counts {
+        let dup_level = *dl as f64;
+        let count = *c as f64;
+        dedup_total += count;
+        row_total += count * dup_level;
+        let mut dup_slot: usize = (*dl - 1) as usize;
+        for i in 0..DUP_LEVEL_LABELS.len() {
+            let idx = DUP_LEVEL_LABELS.len() - i - 1;
+            if dup_level > DUP_LEVEL_LABELS[idx].0 as f64 {
+                dup_slot = idx;
+                break;
+            }
+        }
+        deduplicated_percentages[dup_slot] += count;
+        total_percentages[dup_slot] += count * dup_level;
+    }
+    let mut vecs: Vec<DuplicationLevel> = Vec::new();
+    for idx in 0..deduplicated_percentages.len() {
+        vecs.push(DuplicationLevel {
+                      label: DUP_LEVEL_LABELS[idx].1,
+                      deduplicated_percentage: deduplicated_percentages[idx] * 100.0 / dedup_total,
+                      total_percentage: total_percentages[idx] * 100.0 / row_total,
+                  });
+    }
+    return Ok(DuplicationLevelReport {
+                  status: QCResult::Pass,
+                  total_dedup_percentage: dedup_total / row_total * 100.0,
+                  duplication_levels: vecs,
+              });
 }
-impl<'a> QCModule for DuplicationLevelModule<'a> {
+impl QCReport for DuplicationLevelReport {
     fn get_name(&self) -> &'static str {
         return "Sequence Duplication Levels";
     }
     fn get_status(&self) -> QCResult {
-        return self.report.as_ref().unwrap().status;
+        return self.status;
     }
-    fn to_json(&self) -> Result<Value, TrustSeqErr> {
-        let report = self.report.as_ref().unwrap();
-        return Ok(value::to_value(&report)?);
-    }
-    fn process_sequence(&mut self, seq: &Sequence) -> () {}
-    fn calculate(&mut self) -> Result<(), TrustSeqErr> {
-        let mut deduplicated_percentages: [f64; 16] = [0.0; 16];
-        let mut total_percentages: [f64; 16] = [0.0; 16];
-        let mut collated_counts: HashMap<u32, u32> = HashMap::new();
-        for count in self.over_represented_seqs.sequences.values() {
-            let c = collated_counts.entry(*count).or_insert(0);
-            *c += 1;
-        }
-        let mut corrected_counts: HashMap<u32, f64> = HashMap::new();
-        for (dup_level, count) in &collated_counts {
-            corrected_counts
-                .insert(*dup_level,
-                        get_corrected_count(self.over_represented_seqs.count_at_unique_limit,
-                                            self.over_represented_seqs.count,
-                                            *dup_level as u64,
-                                            *count as u64));
-        }
-        let mut dedup_total: f64 = 0.0;
-        let mut row_total: f64 = 0.0;
-        for (dl, c) in &corrected_counts {
-            let dup_level = *dl as f64;
-            let count = *c as f64;
-            dedup_total += count;
-            row_total += count * dup_level;
-            let mut dup_slot: usize = (*dl - 1) as usize;
-            for i in 0..DUP_LEVEL_LABELS.len() {
-                let idx = DUP_LEVEL_LABELS.len() - i - 1;
-                if dup_level > DUP_LEVEL_LABELS[idx].0 as f64 {
-                    dup_slot = idx;
-                    break;
-                }
-            }
-            deduplicated_percentages[dup_slot] += count;
-            total_percentages[dup_slot] += count * dup_level;
-        }
-        let mut vecs: Vec<DuplicationLevel> = Vec::new();
-        for idx in 0..deduplicated_percentages.len() {
-            vecs.push(DuplicationLevel {
-                          label: DUP_LEVEL_LABELS[idx].1,
-                          deduplicated_percentage: deduplicated_percentages[idx] * 100.0 /
-                                                   dedup_total,
-                          total_percentage: total_percentages[idx] * 100.0 / row_total,
-                      });
-        }
-        self.report = Some(DuplicationLevelReport {
-                               status: QCResult::pass,
-                               total_dedup_percentage: dedup_total / row_total * 100.0,
-                               duplication_levels: vecs,
-                           });
+    fn add_json(&self, map: &mut Map<String, Value>) -> Result<(), TrustSeqErr> {
+        map.insert(self.get_name().to_string(), value::to_value(self)?);
         return Ok(());
     }
     fn print_text_report(&self, writer: &mut Write) -> Result<(), TrustSeqErr> {
-        let report = self.report.as_ref().unwrap();
         writeln!(writer, "#Total Deduplicated Percentage")?;
-        writeln!(writer, "{}", report.total_dedup_percentage)?;
+        writeln!(writer, "{}", self.total_dedup_percentage)?;
         writeln!(writer,
                  "#Duplication Level\tPercentage of deduplicated\tPercentage of total\n")?;
-        for seq in &report.duplication_levels {
+        for seq in &self.duplication_levels {
             writeln!(writer,
                      "{}\t{}\t{}",
                      seq.label,
@@ -201,18 +169,33 @@ impl<'a> QCModule for DuplicationLevelModule<'a> {
 
     }
 }
-impl<'a> QCModule for OverRepresentedSeqs<'a> {
+impl QCReport for OverRepresentedReport {
     fn get_name(&self) -> &'static str {
         return "Sequence Duplication Levels";
     }
     fn get_status(&self) -> QCResult {
-        return self.report.as_ref().unwrap().status;
+        return self.status;
     }
-    fn to_json(&self) -> Result<Value, TrustSeqErr> {
-        let report = self.report.as_ref().unwrap();
-        return Ok(value::to_value(&report)?);
+    fn add_json(&self, map: &mut Map<String, Value>) -> Result<(), TrustSeqErr> {
+        map.insert(self.get_name().to_string(), value::to_value(&self)?);
+        return Ok(());
     }
-    fn calculate(&mut self) -> Result<(), TrustSeqErr> {
+    fn print_text_report(&self, writer: &mut Write) -> Result<(), TrustSeqErr> {
+        writeln!(writer, "#Sequence\tCount\tPercentage\tPossible Source")?;
+        for seq in &self.over_represented {
+            writeln!(writer,
+                     "{}\t{}\t{}\t{}",
+                     seq.seq,
+                     seq.count,
+                     seq.percentage,
+                     seq.possible_source)?;
+        }
+        return Ok(());
+    }
+}
+impl<'a> QCModule for OverRepresentedSeqs<'a> {
+    fn calculate(&self, reports: &mut Vec<Box<QCReport>>) -> Result<(), TrustSeqErr> {
+        reports.push(Box::new(calculate_report(self)?));
         let mut seqs: Vec<OverRepresentedSeq> = Vec::new();
         let cons = Contaminant::load_contaminants(BufReader::new(CONTAMINANT_LIST.as_bytes()));
         for (sequence, count) in &self.sequences {
@@ -244,31 +227,18 @@ impl<'a> QCModule for OverRepresentedSeqs<'a> {
         let error_th = self.config.module_config.get("overrepresented:error");
         let warn_th = self.config.module_config.get("overrepresented:warn");
         let status = if max_percant > error_th {
-            QCResult::fail
+            QCResult::Fail
         } else if max_percant > warn_th {
-            QCResult::warn
+            QCResult::Warn
         } else {
-            QCResult::pass
+            QCResult::Pass
         };
-        self.report = Some(OverRepresentedReport {
-                               status: QCResult::pass,
-                               over_represented: seqs,
-                           });
+        reports.push(Box::new(OverRepresentedReport {
+                                  status: status,
+                                  over_represented: seqs,
+                              }));
         return Ok(());
 
-    }
-    fn print_text_report(&self, writer: &mut Write) -> Result<(), TrustSeqErr> {
-        let report = self.report.as_ref().unwrap();
-        writeln!(writer, "#Sequence\tCount\tPercentage\tPossible Source")?;
-        for seq in &report.over_represented {
-            writeln!(writer,
-                     "{}\t{}\t{}\t{}",
-                     seq.seq,
-                     seq.count,
-                     seq.percentage,
-                     seq.possible_source)?;
-        }
-        return Ok(());
     }
     fn process_sequence(&mut self, seq: &Sequence) -> () {
         self.count += 1;

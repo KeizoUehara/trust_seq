@@ -1,5 +1,3 @@
-use std::cmp;
-use std::vec;
 
 pub struct GCModelValue {
     percentage: usize,
@@ -24,7 +22,6 @@ impl GCModel {
             let high_count = (pos as f64 + 0.5).min(rlen);
             let low_percentage = (low_count * 100.0 / rlen).round() as usize;
             let high_percentage = (high_count * 100.0 / rlen).round() as usize;
-            let len = high_percentage + 1 - low_percentage;
             let mut model: Vec<GCModelValue> = Vec::new();
             for p in low_percentage..(high_percentage + 1) {
                 model.push(GCModelValue {
