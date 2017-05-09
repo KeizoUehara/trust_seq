@@ -101,7 +101,13 @@ impl<'a> QCModule for PerTileQualityScores<'a> {
             q.add_value(idx,*ch);
         }
     }
+    fn ignore_in_report(&self) -> bool{
+        return self.ignore_in_report;
+    }
     fn calculate(&mut self) -> Result<(), TrustSeqErr>{
+        if self.ignore_in_report{
+            return Ok(());
+        }
         let encode = PhreadEncoding::get_phread_encoding(self.min_char).unwrap();
         let offset = encode.offset as u32;
         let groups = BaseGroup::make_base_groups(&self.config.group_type, self.current_length);

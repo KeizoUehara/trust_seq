@@ -2,12 +2,29 @@ use trust_seq::utils;
 use std::io::BufRead;
 use std::vec::Vec;
 use std::cmp;
+use std::cmp::Ordering;
 
+
+#[derive(Debug,Clone,Copy)]
 pub struct ContaminantHit<'a> {
     pub contaminant: &'a Contaminant,
     pub direction: u32,
     pub length: usize,
     pub percent_id: u32,
+}
+fn get_length<'a>(h: Option<ContaminantHit<'a>>) -> usize {
+    if let Some(x) = h { x.length } else { 0 }
+}
+pub fn find_contaminant<'a>(contaminants: &'a Vec<Contaminant>,
+                            query: &[u8])
+                            -> Option<ContaminantHit<'a>> {
+    match contaminants
+              .iter()
+              .map(|c| c.find_match(query))
+              .max_by_key(|h| get_length(*h)) {
+        Some(v) => v,
+        None => None,
+    }
 }
 #[derive(Debug)]
 pub struct Contaminant {
@@ -60,41 +77,55 @@ fn find_longest_match_with_one_mismatch(a: &[u8], b: &[u8]) -> Option<Hit> {
                None => None,
            };
 }
-fn test_match(lhs: &str, rhs: &str) -> Option<(usize, usize, usize)> {
-    let hit = find_longest_match_with_one_mismatch(lhs.as_bytes(), rhs.as_bytes());
-    return match hit {
-               Some(h) => Some((h.start, h.length, h.mismatch)),
-               None => None,
-           };
-}
-#[test]
-fn test_find_longest_match_with_one_mismatch() {
-    assert_eq!(None, test_match("AAAAAA", "BBBBBB"));
-    assert_eq!(Some((4, 2, 0)), test_match("AAAAAA", "BBBBAA"));
-    assert_eq!(Some((0, 3, 0)), test_match("AAAAAA", "AAABBB"));
-    assert_eq!(Some((5, 3, 0)), test_match("AAAAAAAAA", "BBBBBAAAB"));
-    assert_eq!(Some((5, 3, 0)), test_match("AAAAAAAAA", "BAABBAAAB"));
-    assert_eq!(Some((5, 8, 1)),
-               test_match("OOOOOOOOOOOOOO", "OOOOXOOXOOOOOX"));
-    assert_eq!(Some((0, 13, 1)),
-               test_match("OOOOOOOOOOOOOO", "OOOOXOOOOOOOOX"));
-}
-#[test]
-fn test_find_match() {
-    let c = Contaminant::new("Test", "AGCTTCGA");
-    let hit = c.find_match("AGCTTCGA".as_bytes());
-    assert_eq!(0, hit.unwrap().direction);
-    let hit2 = c.find_match("TCGAAGCT".as_bytes());
-    assert_eq!(1, hit2.unwrap().direction);
-}
-#[test]
-fn test_find_match2() {
-    let c = Contaminant::new("Illumina Single End Adapter 1",
-                             "GATCGGAAGAGCTCGTATGCCGTCTTCTGCTTG");
-    let hit = c.find_match("GATAGATGATCGGAAGAGCTCGTATGCCGTCTTCTGCTTGGATAGA".as_bytes());
-    assert_eq!(33, hit.unwrap().length);
-    let hit2 = c.find_match("AAACAAGCAGAAGACGGCATACGAGCTCTTCCGATCAAA".as_bytes());
-    assert_eq!(33, hit2.unwrap().length);
+#[cfg(test)]
+mod tests {
+    use super::find_longest_match_with_one_mismatch;
+    use super::Contaminant;
+    use super::find_contaminant;
+    fn test_match(lhs: &str, rhs: &str) -> Option<(usize, usize, usize)> {
+        let hit = find_longest_match_with_one_mismatch(lhs.as_bytes(), rhs.as_bytes());
+        return match hit {
+                   Some(h) => Some((h.start, h.length, h.mismatch)),
+                   None => None,
+               };
+    }
+
+    #[test]
+    fn test_find_longest_match_with_one_mismatch() {
+        assert_eq!(None, test_match("AAAAAA", "BBBBBB"));
+        assert_eq!(Some((4, 2, 0)), test_match("AAAAAA", "BBBBAA"));
+        assert_eq!(Some((0, 3, 0)), test_match("AAAAAA", "AAABBB"));
+        assert_eq!(Some((5, 3, 0)), test_match("AAAAAAAAA", "BBBBBAAAB"));
+        assert_eq!(Some((5, 3, 0)), test_match("AAAAAAAAA", "BAABBAAAB"));
+        assert_eq!(Some((5, 8, 1)),
+                   test_match("OOOOOOOOOOOOOO", "OOOOXOOXOOOOOX"));
+        assert_eq!(Some((0, 13, 1)),
+                   test_match("OOOOOOOOOOOOOO", "OOOOXOOOOOOOOX"));
+    }
+    #[test]
+    fn test_find_match() {
+        let c = Contaminant::new("Test", "AGCTTCGA");
+        let hit = c.find_match("AGCTTCGA".as_bytes());
+        assert_eq!(0, hit.unwrap().direction);
+        let hit2 = c.find_match("TCGAAGCT".as_bytes());
+        assert_eq!(1, hit2.unwrap().direction);
+    }
+    #[test]
+    fn test_find_match3() {
+        let c = Contaminant::new("Illumina Paried End PCR Primer 1",
+                                 "AATGATACGGCGACCACCGAGATCTACACTCTTTCCCTACACGACGCTCTTCCGATCT");
+        let hit = c.find_match("ACACTCTTTCCCTACACGACGCTCTTCCGATCT".as_bytes());
+        println!("hit = {:?}", hit);
+    }
+    #[test]
+    fn test_find_match2() {
+        let c = Contaminant::new("Illumina Single End Adapter 1",
+                                 "GATCGGAAGAGCTCGTATGCCGTCTTCTGCTTG");
+        let hit = c.find_match("GATAGATGATCGGAAGAGCTCGTATGCCGTCTTCTGCTTGGATAGA".as_bytes());
+        assert_eq!(33, hit.unwrap().length);
+        let hit2 = c.find_match("AAACAAGCAGAAGACGGCATACGAGCTCTTCCGATCAAA".as_bytes());
+        assert_eq!(33, hit2.unwrap().length);
+    }
 }
 impl Contaminant {
     pub fn new(name: &str, sequence: &str) -> Contaminant {
@@ -144,6 +175,7 @@ impl Contaminant {
                                                 length: h.length,
                                                 percent_id: pid as u32,
                                             });
+                            println!("con = {},hit={:?}", self.name, h);
                             best_len = h.length;
                         }
                     }
