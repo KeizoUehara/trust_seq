@@ -1,4 +1,5 @@
 pub mod trust_seq;
+pub mod adapter;
 pub mod utils;
 pub mod qc;
 pub mod group;
@@ -7,5 +8,5 @@ pub mod contaminant;
 pub mod contaminant_list;
 pub mod module_config;
 pub mod limits;
-//pub mod adapter;
-//pub mod adapter_list;
+pub mod math;
+pub mod adapter_list;

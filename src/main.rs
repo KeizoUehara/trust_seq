@@ -53,15 +53,15 @@ fn main() {
             }
             _ => {}
         };
-        let json_report = qc::get_json_reports(&modules);
-        match json_report {
-            Ok(map) => {
-                let json = serde_json::to_string_pretty(&map).unwrap();
-                println!("{}", json);
-            }
-            Err(e) => {
-                println!("Error={:?}", e);
-            }
-        }
+        //        let json_report = qc::get_json_reports(&modules);
+        //       match json_report {
+        //          Ok(map) => {
+        //             let json = serde_json::to_string_pretty(&map).unwrap();
+        //             println!("{}", json);
+        //        }
+        //       Err(e) => {
+        //           println!("Error={:?}", e);
+        //       }
+        // }
     }
 }

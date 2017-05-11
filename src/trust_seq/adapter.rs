@@ -6,14 +6,21 @@ use std::cmp;
 #[derive(Debug)]
 pub struct Adapter {
     pub name: String,
-    sequence: String,
+    pub sequence: String,
+    pub positions: Vec<u64>,
 }
 impl Adapter {
     pub fn new(name: &str, sequence: &str) -> Adapter {
-        return Contaminant {
+        return Adapter {
                    name: name.to_string(),
                    sequence: sequence.to_string(),
+                   positions: Vec::new(),
                };
+    }
+    pub fn increment_count(&mut self, idx: usize) {
+        for pos in &mut self.positions[idx..] {
+            *pos += 1;
+        }
     }
     pub fn load_adapters<R: BufRead>(reader: R) -> Vec<Adapter> {
         let mut cons = Vec::new();
@@ -35,10 +42,7 @@ impl Adapter {
                 Some(i) => value.push_str(&line[(i + 1)..]),
                 None => continue,
             }
-            cons.push(Adaper {
-                          name: key,
-                          sequence: value.clone(),
-                      });
+            cons.push(Adapter::new(&key, &value));
         }
         return cons;
     }

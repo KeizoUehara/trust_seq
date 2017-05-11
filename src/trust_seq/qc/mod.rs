@@ -9,7 +9,8 @@ mod per_sequence_gc_content;
 mod n_content;
 mod sequence_length_distribution;
 mod over_represented_seqs;
-
+mod adapter_content;
+mod kmer_content;
 use super::utils::Sequence;
 
 use std::io::Write;
@@ -28,6 +29,8 @@ use self::per_sequence_gc_content::PerSequenceGCContents;
 use self::n_content::NContent;
 use self::sequence_length_distribution::SequenceLengthDistribution;
 use self::over_represented_seqs::OverRepresentedSeqs;
+use self::adapter_content::AdapterContent;
+use self::kmer_content::KmerContent;
 use super::trust_seq::{TrustSeqConfig, TrustSeqErr};
 
 pub fn create_qcmodules<'a>(config: &'a TrustSeqConfig) -> Vec<Box<QCModule + 'a>> {
@@ -41,6 +44,8 @@ pub fn create_qcmodules<'a>(config: &'a TrustSeqConfig) -> Vec<Box<QCModule + 'a
     modules.push(Box::new(NContent::new(config)));
     modules.push(Box::new(SequenceLengthDistribution::new(config)));
     modules.push(Box::new(OverRepresentedSeqs::new(config)));
+    modules.push(Box::new(AdapterContent::new(config)));
+    modules.push(Box::new(KmerContent::new(config)));
     return modules;
 }
 #[derive(Serialize,Debug,Copy,Clone)]
