@@ -1,15 +1,15 @@
-use std::io::Write;
-use std::collections::hash_map::HashMap;
-use trust_seq::trust_seq::{TrustSeqConfig, TrustSeqErr};
-use trust_seq::utils::Sequence;
-use trust_seq::qc::{QCModule, QCResult, QCReport};
-use std::io::BufReader;
+use serde_json::map::Map;
 use serde_json::value;
 use serde_json::Value;
-use serde_json::map::Map;
-use trust_seq::contaminant::Contaminant;
+use std::collections::hash_map::HashMap;
+use std::io::BufReader;
+use std::io::Write;
 use trust_seq::contaminant::find_contaminant;
+use trust_seq::contaminant::Contaminant;
 use trust_seq::contaminant_list::CONTAMINANT_LIST;
+use trust_seq::qc::{QCModule, QCReport, QCResult};
+use trust_seq::trust_seq::{TrustSeqConfig, TrustSeqErr};
+use trust_seq::utils::Sequence;
 
 const OBSERVATION_CUTOFF: usize = 100000;
 
@@ -33,32 +33,34 @@ struct OverRepresentedSeq {
     percentage: f64,
     possible_source: String,
 }
-const DUP_LEVEL_LABELS: [(usize, &'static str); 16] = [(0, "1"),
-                                                       (1, "2"),
-                                                       (2, "3"),
-                                                       (3, "4"),
-                                                       (4, "5"),
-                                                       (5, "6"),
-                                                       (6, "7"),
-                                                       (7, "8"),
-                                                       (8, "9"),
-                                                       (9, ">10"),
-                                                       (49, ">50"),
-                                                       (99, ">100"),
-                                                       (499, "500"),
-                                                       (999, ">1k"),
-                                                       (4999, ">5k"),
-                                                       (9999, ">10k")];
+const DUP_LEVEL_LABELS: [(usize, &'static str); 16] = [
+    (0, "1"),
+    (1, "2"),
+    (2, "3"),
+    (3, "4"),
+    (4, "5"),
+    (5, "6"),
+    (6, "7"),
+    (7, "8"),
+    (8, "9"),
+    (9, ">10"),
+    (49, ">50"),
+    (99, ">100"),
+    (499, "500"),
+    (999, ">1k"),
+    (4999, ">5k"),
+    (9999, ">10k"),
+];
 impl<'a> OverRepresentedSeqs<'a> {
     pub fn new(config: &'a TrustSeqConfig) -> OverRepresentedSeqs<'a> {
         return OverRepresentedSeqs {
-                   config: config,
-                   count: 0,
-                   unique_sequence_count: 0,
-                   count_at_unique_limit: 0,
-                   frozen: false,
-                   sequences: HashMap::new(),
-               };
+            config: config,
+            count: 0,
+            unique_sequence_count: 0,
+            count_at_unique_limit: 0,
+            frozen: false,
+            sequences: HashMap::new(),
+        };
     }
 }
 #[derive(Serialize)]
@@ -74,11 +76,12 @@ struct DuplicationLevel {
     total_percentage: f64,
 }
 
-fn get_corrected_count(count_at_limit: u64,
-                       total_count: u64,
-                       duplication_level: u64,
-                       number_of_observations: u64)
-                       -> f64 {
+fn get_corrected_count(
+    count_at_limit: u64,
+    total_count: u64,
+    duplication_level: u64,
+    number_of_observations: u64,
+) -> f64 {
     if count_at_limit == total_count {
         return number_of_observations as f64;
     }
@@ -88,13 +91,14 @@ fn get_corrected_count(count_at_limit: u64,
 
     let mut p_not_seeing_at_limit = 1f64;
     for i in 0..count_at_limit {
-        p_not_seeing_at_limit = ((total_count - i) - duplication_level) as f64 /
-                                (total_count - i) as f64;
+        p_not_seeing_at_limit =
+            ((total_count - i) - duplication_level) as f64 / (total_count - i) as f64;
     }
     return number_of_observations as f64 / (1.0 - p_not_seeing_at_limit);
 }
-fn calculate_report(over_represented_seqs: &OverRepresentedSeqs)
-                    -> Result<DuplicationLevelReport, TrustSeqErr> {
+fn calculate_report(
+    over_represented_seqs: &OverRepresentedSeqs,
+) -> Result<DuplicationLevelReport, TrustSeqErr> {
     let mut deduplicated_percentages: [f64; 16] = [0.0; 16];
     let mut total_percentages: [f64; 16] = [0.0; 16];
     let mut collated_counts: HashMap<u32, u32> = HashMap::new();
@@ -104,11 +108,15 @@ fn calculate_report(over_represented_seqs: &OverRepresentedSeqs)
     }
     let mut corrected_counts: HashMap<u32, f64> = HashMap::new();
     for (dup_level, count) in &collated_counts {
-        corrected_counts.insert(*dup_level,
-                                get_corrected_count(over_represented_seqs.count_at_unique_limit,
-                                                    over_represented_seqs.count,
-                                                    *dup_level as u64,
-                                                    *count as u64));
+        corrected_counts.insert(
+            *dup_level,
+            get_corrected_count(
+                over_represented_seqs.count_at_unique_limit,
+                over_represented_seqs.count,
+                *dup_level as u64,
+                *count as u64,
+            ),
+        );
     }
     let mut dedup_total: f64 = 0.0;
     let mut row_total: f64 = 0.0;
@@ -131,16 +139,16 @@ fn calculate_report(over_represented_seqs: &OverRepresentedSeqs)
     let mut vecs: Vec<DuplicationLevel> = Vec::new();
     for idx in 0..deduplicated_percentages.len() {
         vecs.push(DuplicationLevel {
-                      label: DUP_LEVEL_LABELS[idx].1,
-                      deduplicated_percentage: deduplicated_percentages[idx] * 100.0 / dedup_total,
-                      total_percentage: total_percentages[idx] * 100.0 / row_total,
-                  });
+            label: DUP_LEVEL_LABELS[idx].1,
+            deduplicated_percentage: deduplicated_percentages[idx] * 100.0 / dedup_total,
+            total_percentage: total_percentages[idx] * 100.0 / row_total,
+        });
     }
     return Ok(DuplicationLevelReport {
-                  status: QCResult::Pass,
-                  total_dedup_percentage: dedup_total / row_total * 100.0,
-                  duplication_levels: vecs,
-              });
+        status: QCResult::Pass,
+        total_dedup_percentage: dedup_total / row_total * 100.0,
+        duplication_levels: vecs,
+    });
 }
 impl QCReport for DuplicationLevelReport {
     fn get_name(&self) -> &'static str {
@@ -156,17 +164,18 @@ impl QCReport for DuplicationLevelReport {
     fn print_text_report(&self, writer: &mut Write) -> Result<(), TrustSeqErr> {
         writeln!(writer, "#Total Deduplicated Percentage")?;
         writeln!(writer, "{}", self.total_dedup_percentage)?;
-        writeln!(writer,
-                 "#Duplication Level\tPercentage of deduplicated\tPercentage of total\n")?;
+        writeln!(
+            writer,
+            "#Duplication Level\tPercentage of deduplicated\tPercentage of total\n"
+        )?;
         for seq in &self.duplication_levels {
-            writeln!(writer,
-                     "{}\t{}\t{}",
-                     seq.label,
-                     seq.deduplicated_percentage,
-                     seq.total_percentage)?;
+            writeln!(
+                writer,
+                "{}\t{}\t{}",
+                seq.label, seq.deduplicated_percentage, seq.total_percentage
+            )?;
         }
         return Ok(());
-
     }
 }
 impl QCReport for OverRepresentedReport {
@@ -183,12 +192,11 @@ impl QCReport for OverRepresentedReport {
     fn print_text_report(&self, writer: &mut Write) -> Result<(), TrustSeqErr> {
         writeln!(writer, "#Sequence\tCount\tPercentage\tPossible Source")?;
         for seq in &self.over_represented {
-            writeln!(writer,
-                     "{}\t{}\t{}\t{}",
-                     seq.seq,
-                     seq.count,
-                     seq.percentage,
-                     seq.possible_source)?;
+            writeln!(
+                writer,
+                "{}\t{}\t{}\t{}",
+                seq.seq, seq.count, seq.percentage, seq.possible_source
+            )?;
         }
         return Ok(());
     }
@@ -203,21 +211,18 @@ impl<'a> QCModule for OverRepresentedSeqs<'a> {
 
             if 0.1 < percantage {
                 let possible_source = match find_contaminant(&cons, sequence.as_bytes()) {
-                    Some(hit) => {
-                        format!("{} ({}% over {} bp) {}",
-                                hit.contaminant.name,
-                                hit.percent_id,
-                                hit.length,
-                                hit.direction)
-                    }
+                    Some(hit) => format!(
+                        "{} ({}% over {} bp) {}",
+                        hit.contaminant.name, hit.percent_id, hit.length, hit.direction
+                    ),
                     None => "No Hit".to_string(),
                 };
                 seqs.push(OverRepresentedSeq {
-                              seq: sequence.to_string(),
-                              count: *count,
-                              percentage: percantage,
-                              possible_source: possible_source,
-                          });
+                    seq: sequence.to_string(),
+                    count: *count,
+                    percentage: percantage,
+                    possible_source: possible_source,
+                });
             }
         }
 
@@ -234,11 +239,10 @@ impl<'a> QCModule for OverRepresentedSeqs<'a> {
             QCResult::Pass
         };
         reports.push(Box::new(OverRepresentedReport {
-                                  status: status,
-                                  over_represented: seqs,
-                              }));
+            status: status,
+            over_represented: seqs,
+        }));
         return Ok(());
-
     }
     fn process_sequence(&mut self, seq: &Sequence) -> () {
         self.count += 1;

@@ -5,17 +5,14 @@ extern crate serde_json;
 
 extern crate getopts;
 
-use std::fs::File;
 use std::env;
-use serde_json::map::Map;
+use std::fs::File;
 use trust_seq::qc;
-use trust_seq::qc::QCReport;
-use trust_seq::utils::FastQReader;
 use trust_seq::trust_seq::TrustSeqConfig;
+use trust_seq::utils::FastQReader;
 mod trust_seq;
 
 fn main() {
-
     let mut report = File::create("test_data.txt").unwrap();
     let rslt = TrustSeqConfig::get_fastqc_config(&env::args().collect());
     let config: TrustSeqConfig;
@@ -53,15 +50,16 @@ fn main() {
             }
             _ => {}
         };
-        //        let json_report = qc::get_json_reports(&modules);
-        //       match json_report {
-        //          Ok(map) => {
-        //             let json = serde_json::to_string_pretty(&map).unwrap();
-        //             println!("{}", json);
-        //        }
-        //       Err(e) => {
-        //           println!("Error={:?}", e);
-        //       }
-        // }
+
+        let json_report = qc::get_json_reports(&modules);
+        match json_report {
+            Ok(map) => {
+                let json = serde_json::to_string_pretty(&map).unwrap();
+                println!("{}", json);
+            }
+            Err(e) => {
+                println!("Error={:?}", e);
+            }
+        }
     }
 }

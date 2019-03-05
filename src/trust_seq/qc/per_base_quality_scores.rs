@@ -1,15 +1,15 @@
+use serde_json::map::Map;
+use serde_json::value;
+use serde_json::value::Value;
 use std::cmp;
 use std::f64;
 use std::io::Write;
-use serde_json::value::Value;
-use serde_json::value;
-use serde_json::map::Map;
-use trust_seq::utils::Sequence;
-use trust_seq::trust_seq::{TrustSeqConfig, TrustSeqErr};
-use trust_seq::qc::{QCModule, QCReport, QCResult};
-use trust_seq::qc::PhreadEncoding;
-use trust_seq::qc::quality_counts::QualityCounts;
 use trust_seq::group::BaseGroup;
+use trust_seq::qc::quality_counts::QualityCounts;
+use trust_seq::qc::PhreadEncoding;
+use trust_seq::qc::{QCModule, QCReport, QCResult};
+use trust_seq::trust_seq::{TrustSeqConfig, TrustSeqErr};
+use trust_seq::utils::Sequence;
 
 pub struct PerBaseQualityScores<'a> {
     min_char: u8,
@@ -37,11 +37,11 @@ struct Quality {
 impl<'a> PerBaseQualityScores<'a> {
     pub fn new(config: &'a TrustSeqConfig) -> PerBaseQualityScores {
         return PerBaseQualityScores {
-                   qualities: QualityCounts::new(),
-                   min_char: 255,
-                   max_char: 0,
-                   config: config,
-               };
+            qualities: QualityCounts::new(),
+            min_char: 255,
+            max_char: 0,
+            config: config,
+        };
     }
 }
 impl QCReport for PerBaseQualityReport {
@@ -58,26 +58,30 @@ impl QCReport for PerBaseQualityReport {
     fn print_text_report(&self, writer: &mut Write) -> Result<(), TrustSeqErr> {
         for q in &self.quality_data {
             if q.lower_base == q.upper_base {
-                write!(writer,
-                       "{}\t{}\t{}\t{}\t{}\t{}\t{}\n",
-                       q.lower_base,
-                       q.mean,
-                       q.median,
-                       q.lower_quartile,
-                       q.upper_quartile,
-                       q.percentile_10,
-                       q.percentile_90)?;
+                write!(
+                    writer,
+                    "{}\t{}\t{}\t{}\t{}\t{}\t{}\n",
+                    q.lower_base,
+                    q.mean,
+                    q.median,
+                    q.lower_quartile,
+                    q.upper_quartile,
+                    q.percentile_10,
+                    q.percentile_90
+                )?;
             } else {
-                write!(writer,
-                       "{}-{}\t{}\t{}\t{}\t{}\t{}\t{}\n",
-                       q.lower_base,
-                       q.upper_base,
-                       q.mean,
-                       q.median,
-                       q.lower_quartile,
-                       q.upper_quartile,
-                       q.percentile_10,
-                       q.percentile_90)?;
+                write!(
+                    writer,
+                    "{}-{}\t{}\t{}\t{}\t{}\t{}\t{}\n",
+                    q.lower_base,
+                    q.upper_base,
+                    q.mean,
+                    q.median,
+                    q.lower_quartile,
+                    q.upper_quartile,
+                    q.percentile_10,
+                    q.percentile_90
+                )?;
             }
         }
         return Ok(());
@@ -95,28 +99,22 @@ impl<'a> QCModule for PerBaseQualityScores<'a> {
             let lower_quartile = self.qualities.get_percentile(group, offset, 25);
             let median = self.qualities.get_percentile(group, offset, 50);
             v.push(Quality {
-                       lower_base: group.lower_count,
-                       upper_base: group.upper_count,
-                       mean: self.qualities.get_mean(group, offset),
-                       median: median,
-                       lower_quartile: lower_quartile,
-                       upper_quartile: self.qualities.get_percentile(group, offset, 75),
-                       percentile_10: self.qualities.get_percentile(group, offset, 10),
-                       percentile_90: self.qualities.get_percentile(group, offset, 90),
-                   });
+                lower_base: group.lower_count,
+                upper_base: group.upper_count,
+                mean: self.qualities.get_mean(group, offset),
+                median: median,
+                lower_quartile: lower_quartile,
+                upper_quartile: self.qualities.get_percentile(group, offset, 75),
+                percentile_10: self.qualities.get_percentile(group, offset, 10),
+                percentile_90: self.qualities.get_percentile(group, offset, 90),
+            });
             min_median = min_median.min(median);
             min_quartile = min_quartile.min(lower_quartile);
         }
-        let lower_error_th = self.config
-            .module_config
-            .get("quality_base_lower:error");
-        let median_error_th = self.config
-            .module_config
-            .get("quality_base_median:error");
+        let lower_error_th = self.config.module_config.get("quality_base_lower:error");
+        let median_error_th = self.config.module_config.get("quality_base_median:error");
         let lower_warn_th = self.config.module_config.get("quality_base_lower:warn");
-        let median_warn_th = self.config
-            .module_config
-            .get("quality_base_median:warn");
+        let median_warn_th = self.config.module_config.get("quality_base_median:warn");
         let status = if min_median < median_error_th || min_quartile < lower_error_th {
             QCResult::Fail
         } else if min_median < median_warn_th || min_quartile < lower_warn_th {
@@ -125,9 +123,9 @@ impl<'a> QCModule for PerBaseQualityScores<'a> {
             QCResult::Pass
         };
         reports.push(Box::new(PerBaseQualityReport {
-                                  status: status,
-                                  quality_data: v,
-                              }));
+            status: status,
+            quality_data: v,
+        }));
         return Ok(());
     }
     fn process_sequence(&mut self, seq: &Sequence) -> () {

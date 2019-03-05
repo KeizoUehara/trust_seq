@@ -1,10 +1,9 @@
-use trust_seq::utils;
+use std::cmp;
 use std::io::BufRead;
 use std::vec::Vec;
-use std::cmp;
+use trust_seq::utils;
 
-
-#[derive(Debug,Clone,Copy)]
+#[derive(Debug, Clone, Copy)]
 pub struct ContaminantHit<'a> {
     pub contaminant: &'a Contaminant,
     pub direction: u32,
@@ -12,15 +11,21 @@ pub struct ContaminantHit<'a> {
     pub percent_id: u32,
 }
 fn get_length<'a>(h: Option<ContaminantHit<'a>>) -> usize {
-    if let Some(x) = h { x.length } else { 0 }
+    if let Some(x) = h {
+        x.length
+    } else {
+        0
+    }
 }
-pub fn find_contaminant<'a>(contaminants: &'a Vec<Contaminant>,
-                            query: &[u8])
-                            -> Option<ContaminantHit<'a>> {
+pub fn find_contaminant<'a>(
+    contaminants: &'a Vec<Contaminant>,
+    query: &[u8],
+) -> Option<ContaminantHit<'a>> {
     match contaminants
-              .iter()
-              .map(|c| c.find_match(query))
-              .max_by_key(|h| get_length(*h)) {
+        .iter()
+        .map(|c| c.find_match(query))
+        .max_by_key(|h| get_length(*h))
+    {
         Some(v) => v,
         None => None,
     }
@@ -31,7 +36,7 @@ pub struct Contaminant {
     forward: String,
     reverse: String,
 }
-#[derive(Debug,PartialEq)]
+#[derive(Debug, PartialEq)]
 struct Hit {
     start: usize,
     length: usize,
@@ -66,27 +71,25 @@ fn find_longest_match_with_one_mismatch(a: &[u8], b: &[u8]) -> Option<Hit> {
         }
     }
     return match match_region {
-               Some(m) => {
-                   Some(Hit {
-                            start: m.0,
-                            length: m.1 - m.0 + 1,
-                            mismatch: m.2,
-                        })
-               }
-               None => None,
-           };
+        Some(m) => Some(Hit {
+            start: m.0,
+            length: m.1 - m.0 + 1,
+            mismatch: m.2,
+        }),
+        None => None,
+    };
 }
 #[cfg(test)]
 mod tests {
+    use super::find_contaminant;
     use super::find_longest_match_with_one_mismatch;
     use super::Contaminant;
-    use super::find_contaminant;
     fn test_match(lhs: &str, rhs: &str) -> Option<(usize, usize, usize)> {
         let hit = find_longest_match_with_one_mismatch(lhs.as_bytes(), rhs.as_bytes());
         return match hit {
-                   Some(h) => Some((h.start, h.length, h.mismatch)),
-                   None => None,
-               };
+            Some(h) => Some((h.start, h.length, h.mismatch)),
+            None => None,
+        };
     }
 
     #[test]
@@ -96,10 +99,14 @@ mod tests {
         assert_eq!(Some((0, 3, 0)), test_match("AAAAAA", "AAABBB"));
         assert_eq!(Some((5, 3, 0)), test_match("AAAAAAAAA", "BBBBBAAAB"));
         assert_eq!(Some((5, 3, 0)), test_match("AAAAAAAAA", "BAABBAAAB"));
-        assert_eq!(Some((5, 8, 1)),
-                   test_match("OOOOOOOOOOOOOO", "OOOOXOOXOOOOOX"));
-        assert_eq!(Some((0, 13, 1)),
-                   test_match("OOOOOOOOOOOOOO", "OOOOXOOOOOOOOX"));
+        assert_eq!(
+            Some((5, 8, 1)),
+            test_match("OOOOOOOOOOOOOO", "OOOOXOOXOOOOOX")
+        );
+        assert_eq!(
+            Some((0, 13, 1)),
+            test_match("OOOOOOOOOOOOOO", "OOOOXOOOOOOOOX")
+        );
     }
     #[test]
     fn test_find_match() {
@@ -111,15 +118,19 @@ mod tests {
     }
     #[test]
     fn test_find_match3() {
-        let c = Contaminant::new("Illumina Paried End PCR Primer 1",
-                                 "AATGATACGGCGACCACCGAGATCTACACTCTTTCCCTACACGACGCTCTTCCGATCT");
+        let c = Contaminant::new(
+            "Illumina Paried End PCR Primer 1",
+            "AATGATACGGCGACCACCGAGATCTACACTCTTTCCCTACACGACGCTCTTCCGATCT",
+        );
         let hit = c.find_match("ACACTCTTTCCCTACACGACGCTCTTCCGATCT".as_bytes());
         println!("hit = {:?}", hit);
     }
     #[test]
     fn test_find_match2() {
-        let c = Contaminant::new("Illumina Single End Adapter 1",
-                                 "GATCGGAAGAGCTCGTATGCCGTCTTCTGCTTG");
+        let c = Contaminant::new(
+            "Illumina Single End Adapter 1",
+            "GATCGGAAGAGCTCGTATGCCGTCTTCTGCTTG",
+        );
         let hit = c.find_match("GATAGATGATCGGAAGAGCTCGTATGCCGTCTTCTGCTTGGATAGA".as_bytes());
         assert_eq!(33, hit.unwrap().length);
         let hit2 = c.find_match("AAACAAGCAGAAGACGGCATACGAGCTCTTCCGATCAAA".as_bytes());
@@ -129,27 +140,27 @@ mod tests {
 impl Contaminant {
     pub fn new(name: &str, sequence: &str) -> Contaminant {
         return Contaminant {
-                   name: name.to_string(),
-                   forward: sequence.to_string(),
-                   reverse: utils::revcomp(sequence),
-               };
+            name: name.to_string(),
+            forward: sequence.to_string(),
+            reverse: utils::revcomp(sequence),
+        };
     }
     pub fn find_match(&self, query: &[u8]) -> Option<ContaminantHit> {
         if 8 <= query.len() && query.len() < 20 {
             if self.forward.as_bytes() == query {
                 return Some(ContaminantHit {
-                                contaminant: self,
-                                direction: 0,
-                                length: query.len(),
-                                percent_id: 100,
-                            });
+                    contaminant: self,
+                    direction: 0,
+                    length: query.len(),
+                    percent_id: 100,
+                });
             } else if self.reverse.as_bytes() == query {
                 return Some(ContaminantHit {
-                                contaminant: self,
-                                direction: 1,
-                                length: query.len(),
-                                percent_id: 100,
-                            });
+                    contaminant: self,
+                    direction: 1,
+                    length: query.len(),
+                    percent_id: 100,
+                });
             }
         }
         let s: i32 = 20 - self.forward.len() as i32;
@@ -162,18 +173,20 @@ impl Contaminant {
                 let end1 = cmp::min(seq.len() as i32, query.len() as i32 - offset) as usize;
                 let start2 = cmp::max(0, offset) as usize;
                 let end2 = cmp::min(query.len() as i32, seq.len() as i32 + offset) as usize;
-                let hit = find_longest_match_with_one_mismatch(&seq.as_bytes()[start1..end1],
-                                                               &query[start2..end2]);
+                let hit = find_longest_match_with_one_mismatch(
+                    &seq.as_bytes()[start1..end1],
+                    &query[start2..end2],
+                );
                 match hit {
                     Some(h) => {
                         if best_len < h.length {
                             let pid = (h.length - h.mismatch) * 100 / h.length;
                             best_hit = Some(ContaminantHit {
-                                                contaminant: self,
-                                                direction: idx as u32,
-                                                length: h.length,
-                                                percent_id: pid as u32,
-                                            });
+                                contaminant: self,
+                                direction: idx as u32,
+                                length: h.length,
+                                percent_id: pid as u32,
+                            });
                             best_len = h.length;
                         }
                     }
@@ -204,10 +217,10 @@ impl Contaminant {
                 None => continue,
             }
             cons.push(Contaminant {
-                          name: key,
-                          forward: value.clone(),
-                          reverse: utils::revcomp(&value),
-                      });
+                name: key,
+                forward: value.clone(),
+                reverse: utils::revcomp(&value),
+            });
         }
         return cons;
     }

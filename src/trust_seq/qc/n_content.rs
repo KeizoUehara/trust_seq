@@ -1,11 +1,11 @@
-use std::io::Write;
+use serde_json::map::Map;
 use serde_json::value;
 use serde_json::value::Value;
-use serde_json::map::Map;
+use std::io::Write;
 use trust_seq::group::BaseGroup;
+use trust_seq::qc::{QCModule, QCReport, QCResult};
 use trust_seq::trust_seq::{TrustSeqConfig, TrustSeqErr};
 use trust_seq::utils::Sequence;
-use trust_seq::qc::{QCModule, QCResult, QCReport};
 
 pub struct NContent<'a> {
     config: &'a TrustSeqConfig,
@@ -21,10 +21,10 @@ struct NContentReport {
 impl<'a> NContent<'a> {
     pub fn new(config: &'a TrustSeqConfig) -> NContent {
         return NContent {
-                   config: config,
-                   n_counts: Vec::new(),
-                   not_n_counts: Vec::new(),
-               };
+            config: config,
+            n_counts: Vec::new(),
+            not_n_counts: Vec::new(),
+        };
     }
 }
 impl QCReport for NContentReport {
@@ -46,11 +46,11 @@ impl QCReport for NContentReport {
             if group.lower_count == group.upper_count {
                 writeln!(writer, "{}\t{}", group.lower_count, self.percentages[idx])?;
             } else {
-                writeln!(writer,
-                         "{}-{}\t{}",
-                         group.lower_count,
-                         group.upper_count,
-                         self.percentages[idx])?;
+                writeln!(
+                    writer,
+                    "{}-{}\t{}",
+                    group.lower_count, group.upper_count, self.percentages[idx]
+                )?;
             }
         }
         return Ok(());
@@ -83,12 +83,11 @@ impl<'a> QCModule for NContent<'a> {
             QCResult::Pass
         };
         reports.push(Box::new(NContentReport {
-                                  status: status,
-                                  groups: groups,
-                                  percentages: percentages,
-                              }));
+            status: status,
+            groups: groups,
+            percentages: percentages,
+        }));
         return Ok(());
-
     }
     fn process_sequence(&mut self, seq: &Sequence) -> () {
         let len = seq.sequence.len();

@@ -1,7 +1,5 @@
-use trust_seq::utils;
 use std::io::BufRead;
 use std::vec::Vec;
-use std::cmp;
 
 #[derive(Debug)]
 pub struct Adapter {
@@ -12,10 +10,10 @@ pub struct Adapter {
 impl Adapter {
     pub fn new(name: &str, sequence: &str) -> Adapter {
         return Adapter {
-                   name: name.to_string(),
-                   sequence: sequence.to_string(),
-                   positions: Vec::new(),
-               };
+            name: name.to_string(),
+            sequence: sequence.to_string(),
+            positions: Vec::new(),
+        };
     }
     pub fn increment_count(&mut self, idx: usize) {
         for pos in &mut self.positions[idx..] {

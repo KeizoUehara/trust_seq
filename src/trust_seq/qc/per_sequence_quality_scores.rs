@@ -1,11 +1,11 @@
-use std::io::Write;
-use serde_json::value::Value;
-use serde_json::value;
 use serde_json::map::Map;
+use serde_json::value;
+use serde_json::value::Value;
+use std::io::Write;
+use trust_seq::qc::PhreadEncoding;
+use trust_seq::qc::{QCModule, QCReport, QCResult};
 use trust_seq::trust_seq::{TrustSeqConfig, TrustSeqErr};
 use trust_seq::utils::Sequence;
-use trust_seq::qc::{QCModule, QCResult, QCReport};
-use trust_seq::qc::PhreadEncoding;
 
 pub struct PerSequenceQualityScores<'a> {
     score_counts: [u64; 128],
@@ -20,10 +20,10 @@ struct PerSequenceQualityReport {
 impl<'a> PerSequenceQualityScores<'a> {
     pub fn new(config: &'a TrustSeqConfig) -> PerSequenceQualityScores {
         return PerSequenceQualityScores {
-                   score_counts: [0; 128],
-                   lowest_char: 255,
-                   config: config,
-               };
+            score_counts: [0; 128],
+            lowest_char: 255,
+            config: config,
+        };
     }
 }
 impl QCReport for PerSequenceQualityReport {
@@ -61,12 +61,14 @@ impl<'a> QCModule for PerSequenceQualityScores<'a> {
         let mut most_frequence_score = 0.0;
         let encoding = PhreadEncoding::get_phread_encoding(self.lowest_char)?;
         for score in min_score..(max_score + 1) {
-            qualities.push((score as u32 - (encoding.offset as u32), self.score_counts[score]));
+            qualities.push((
+                score as u32 - (encoding.offset as u32),
+                self.score_counts[score],
+            ));
             if max_count < self.score_counts[score] {
                 max_count = self.score_counts[score];
                 most_frequence_score = score as f64;
             }
-
         }
         let error_th = self.config.module_config.get("quality_sequence:error");
         let warn_th = self.config.module_config.get("quality_sequence:warn");
@@ -78,13 +80,12 @@ impl<'a> QCModule for PerSequenceQualityScores<'a> {
             QCResult::Pass
         };
         reports.push(Box::new(PerSequenceQualityReport {
-                                  status: status,
-                                  qualities: qualities,
-                              }));
+            status: status,
+            qualities: qualities,
+        }));
         return Ok(());
     }
     fn process_sequence(&mut self, seq: &Sequence) -> () {
-
         let mut average_quality: usize = 0;
         for ch in seq.quality {
             if *ch < self.lowest_char {

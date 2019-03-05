@@ -1,16 +1,18 @@
-use std::collections::HashMap;
-use std::io::{BufRead, BufReader};
 use super::limits;
-use std::io::Error;
 use super::utils::split_by_space;
+use std::collections::HashMap;
+use std::io::Error;
+use std::io::{BufRead, BufReader};
 
-#[derive(Debug,Clone)]
+#[derive(Debug, Clone)]
 pub struct ModuleConfig {
     params: HashMap<String, f64>,
 }
 impl ModuleConfig {
     pub fn new() -> ModuleConfig {
-        let mut config = ModuleConfig { params: HashMap::new() };
+        let mut config = ModuleConfig {
+            params: HashMap::new(),
+        };
         config
             .load(BufReader::new(limits::LIMIT_DEFAULT.as_bytes()))
             .unwrap();
@@ -27,14 +29,15 @@ impl ModuleConfig {
             }
             let vals = split_by_space(&line);
             if vals.len() != 3 {
-                println!("Config line '{}' didn't contain the 3 required sections",
-                         &line);
+                println!(
+                    "Config line '{}' didn't contain the 3 required sections",
+                    &line
+                );
                 break;
             }
             let rslt = vals[2].parse::<f64>();
             if let Ok(val) = rslt {
-                self.params
-                    .insert(format!("{}:{}", vals[0], vals[1]), val);
+                self.params.insert(format!("{}:{}", vals[0], vals[1]), val);
             }
         }
         return Ok(());

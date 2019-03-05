@@ -1,11 +1,11 @@
-use std::io::Write;
-use std::cmp;
-use serde_json::value;
 use serde_json::map::Map;
+use serde_json::value;
 use serde_json::value::Value;
+use std::cmp;
+use std::io::Write;
+use trust_seq::qc::{QCModule, QCReport, QCResult};
 use trust_seq::trust_seq::{TrustSeqConfig, TrustSeqErr};
 use trust_seq::utils::Sequence;
-use trust_seq::qc::{QCModule, QCResult, QCReport};
 
 pub struct SequenceLengthDistribution<'a> {
     config: &'a TrustSeqConfig,
@@ -19,9 +19,9 @@ struct SequenceLengthReport {
 impl<'a> SequenceLengthDistribution<'a> {
     pub fn new(config: &'a TrustSeqConfig) -> SequenceLengthDistribution<'a> {
         return SequenceLengthDistribution {
-                   config: config,
-                   length_counts: Vec::new(),
-               };
+            config: config,
+            length_counts: Vec::new(),
+        };
     }
 }
 fn get_min_max_idx(vec: &Vec<u64>) -> (usize, usize) {
@@ -78,11 +78,11 @@ impl QCReport for SequenceLengthReport {
             if value.lower_count == value.upper_count {
                 writeln!(writer, "{}\t{}", value.lower_count, value.value)?;
             } else {
-                writeln!(writer,
-                         "{}-{}\t{}",
-                         value.lower_count,
-                         value.upper_count,
-                         value.value)?;
+                writeln!(
+                    writer,
+                    "{}-{}\t{}",
+                    value.lower_count, value.upper_count, value.value
+                )?;
             }
         }
         return Ok(());
@@ -107,10 +107,10 @@ impl<'a> QCModule for SequenceLengthDistribution<'a> {
                 }
             }
             counts.push(GroupValue {
-                            lower_count: current_pos,
-                            upper_count: max_pos,
-                            value: count,
-                        });
+                lower_count: current_pos,
+                upper_count: max_pos,
+                value: count,
+            });
             current_pos += interval;
         }
         let error_th = self.config.module_config.get("sequence_length:error");
@@ -123,9 +123,9 @@ impl<'a> QCModule for SequenceLengthDistribution<'a> {
             QCResult::Pass
         };
         reports.push(Box::new(SequenceLengthReport {
-                                  status: status,
-                                  length_counts: counts,
-                              }));
+            status: status,
+            length_counts: counts,
+        }));
         return Ok(());
     }
     fn process_sequence(&mut self, seq: &Sequence) -> () {

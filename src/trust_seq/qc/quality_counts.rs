@@ -1,6 +1,6 @@
-use trust_seq::group::BaseGroup;
-use std::f64;
 use std::cmp;
+use std::f64;
+use trust_seq::group::BaseGroup;
 
 pub struct QualityCounts {
     pub counts: Vec<QualityCount>,
@@ -76,9 +76,9 @@ impl Clone for QualityCount {
 impl QualityCount {
     pub fn new() -> QualityCount {
         return QualityCount {
-                   total_count: 0,
-                   counts: [0; 150],
-               };
+            total_count: 0,
+            counts: [0; 150],
+        };
     }
     pub fn add_value(&mut self, ch: usize) -> () {
         self.counts[ch as usize] += 1;

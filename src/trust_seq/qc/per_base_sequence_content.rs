@@ -1,12 +1,12 @@
-use std::io::Write;
-use std::f64;
-use serde_json::value;
 use serde_json::map::Map;
+use serde_json::value;
 use serde_json::value::Value;
+use std::f64;
+use std::io::Write;
 use trust_seq::group::BaseGroup;
+use trust_seq::qc::{QCModule, QCReport, QCResult};
 use trust_seq::trust_seq::{TrustSeqConfig, TrustSeqErr};
 use trust_seq::utils::Sequence;
-use trust_seq::qc::{QCModule, QCResult, QCReport};
 
 pub struct PerBaseSequenceContent<'a> {
     config: &'a TrustSeqConfig,
@@ -22,10 +22,10 @@ struct PerBaseSequenceReport {
 impl<'a> PerBaseSequenceContent<'a> {
     pub fn new(config: &'a TrustSeqConfig) -> PerBaseSequenceContent<'a> {
         return PerBaseSequenceContent {
-                   config: config,
-                   counts: [Vec::new(), Vec::new(), Vec::new(), Vec::new()],
-                   report: None,
-               };
+            config: config,
+            counts: [Vec::new(), Vec::new(), Vec::new(), Vec::new()],
+            report: None,
+        };
     }
 }
 impl QCReport for PerBaseSequenceReport {
@@ -39,22 +39,26 @@ impl QCReport for PerBaseSequenceReport {
         write!(writer, "#Base\tG\tA\tT\tC\n")?;
         for (idx, group) in self.group.iter().enumerate() {
             if group.lower_count == group.upper_count {
-                write!(writer,
-                       "{}\t{}\t{}\t{}\t{}\n",
-                       group.lower_count,
-                       self.percents[idx][0],
-                       self.percents[idx][1],
-                       self.percents[idx][2],
-                       self.percents[idx][3])?;
+                write!(
+                    writer,
+                    "{}\t{}\t{}\t{}\t{}\n",
+                    group.lower_count,
+                    self.percents[idx][0],
+                    self.percents[idx][1],
+                    self.percents[idx][2],
+                    self.percents[idx][3]
+                )?;
             } else {
-                write!(writer,
-                       "{}-{}\t{}\t{}\t{}\t{}\n",
-                       group.lower_count,
-                       group.upper_count,
-                       self.percents[idx][0],
-                       self.percents[idx][1],
-                       self.percents[idx][2],
-                       self.percents[idx][3])?;
+                write!(
+                    writer,
+                    "{}-{}\t{}\t{}\t{}\t{}\n",
+                    group.lower_count,
+                    group.upper_count,
+                    self.percents[idx][0],
+                    self.percents[idx][1],
+                    self.percents[idx][2],
+                    self.percents[idx][3]
+                )?;
             }
         }
         return Ok(());
@@ -80,10 +84,12 @@ impl<'a> QCModule for PerBaseSequenceContent<'a> {
                     total += self.counts[base_idx][pos_idx];
                 }
             }
-            let percent = [counts[0] as f64 * 100.0 / total as f64,
-                           counts[1] as f64 * 100.0 / total as f64,
-                           counts[2] as f64 * 100.0 / total as f64,
-                           counts[3] as f64 * 100.0 / total as f64];
+            let percent = [
+                counts[0] as f64 * 100.0 / total as f64,
+                counts[1] as f64 * 100.0 / total as f64,
+                counts[2] as f64 * 100.0 / total as f64,
+                counts[3] as f64 * 100.0 / total as f64,
+            ];
             max_gc_diff = max_gc_diff.max((percent[3] - percent[0]).abs());
             max_at_diff = max_at_diff.max((percent[2] - percent[1]).abs());
             percents.push(percent);
@@ -98,10 +104,10 @@ impl<'a> QCModule for PerBaseSequenceContent<'a> {
             QCResult::Pass
         };
         reports.push(Box::new(PerBaseSequenceReport {
-                                  status: status,
-                                  group: groups,
-                                  percents: percents,
-                              }));
+            status: status,
+            group: groups,
+            percents: percents,
+        }));
         return Ok(());
     }
     fn process_sequence(&mut self, seq: &Sequence) -> () {

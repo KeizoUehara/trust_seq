@@ -1,37 +1,36 @@
-
+mod adapter_content;
 mod basic_stats;
-mod quality_counts;
+mod kmer_content;
+mod n_content;
+mod over_represented_seqs;
 mod per_base_quality_scores;
-mod per_tile_quality_scores;
-mod per_sequence_quality_scores;
 mod per_base_sequence_content;
 mod per_sequence_gc_content;
-mod n_content;
+mod per_sequence_quality_scores;
+mod per_tile_quality_scores;
+mod quality_counts;
 mod sequence_length_distribution;
-mod over_represented_seqs;
-mod adapter_content;
-mod kmer_content;
 use super::utils::Sequence;
 
-use std::io::Write;
+use std::io;
 use std::io::Error;
 use std::io::ErrorKind;
-use std::io;
+use std::io::Write;
 
-use serde_json::Value;
-use serde_json::map::Map;
+use self::adapter_content::AdapterContent;
 use self::basic_stats::BasicStats;
+use self::kmer_content::KmerContent;
+use self::n_content::NContent;
+use self::over_represented_seqs::OverRepresentedSeqs;
 use self::per_base_quality_scores::PerBaseQualityScores;
-use self::per_tile_quality_scores::PerTileQualityScores;
-use self::per_sequence_quality_scores::PerSequenceQualityScores;
 use self::per_base_sequence_content::PerBaseSequenceContent;
 use self::per_sequence_gc_content::PerSequenceGCContents;
-use self::n_content::NContent;
+use self::per_sequence_quality_scores::PerSequenceQualityScores;
+use self::per_tile_quality_scores::PerTileQualityScores;
 use self::sequence_length_distribution::SequenceLengthDistribution;
-use self::over_represented_seqs::OverRepresentedSeqs;
-use self::adapter_content::AdapterContent;
-use self::kmer_content::KmerContent;
 use super::trust_seq::{TrustSeqConfig, TrustSeqErr};
+use serde_json::map::Map;
+use serde_json::Value;
 
 pub fn create_qcmodules<'a>(config: &'a TrustSeqConfig) -> Vec<Box<QCModule + 'a>> {
     let mut modules: Vec<Box<QCModule + 'a>> = Vec::new();
@@ -48,7 +47,7 @@ pub fn create_qcmodules<'a>(config: &'a TrustSeqConfig) -> Vec<Box<QCModule + 'a
     modules.push(Box::new(KmerContent::new(config)));
     return modules;
 }
-#[derive(Serialize,Debug,Copy,Clone)]
+#[derive(Serialize, Debug, Copy, Clone)]
 pub enum QCResult {
     Pass,
     Warn,
@@ -68,13 +67,13 @@ pub trait QCReport {
     fn print_text_report(&self, w: &mut Write) -> Result<(), TrustSeqErr>;
     fn add_json(&self, map: &mut Map<String, Value>) -> Result<(), TrustSeqErr>;
 }
-pub fn write_text_reports<'a>(modules: &Vec<Box<QCModule + 'a>>,
-                              w: &mut Write)
-                              -> Result<(), TrustSeqErr> {
+pub fn write_text_reports<'a>(
+    modules: &Vec<Box<QCModule + 'a>>,
+    w: &mut Write,
+) -> Result<(), TrustSeqErr> {
     let mut reports: Vec<Box<QCReport>> = Vec::new();
     for module in modules {
         module.calculate(&mut reports)?;
-
     }
     for report in reports {
         writeln!(w, ">>{}\t{:?}", report.get_name(), report.get_status())?;
@@ -83,20 +82,20 @@ pub fn write_text_reports<'a>(modules: &Vec<Box<QCModule + 'a>>,
     }
     return Ok(());
 }
-pub fn get_json_reports<'a>(modules: &Vec<Box<QCModule + 'a>>)
-                            -> Result<Map<String, Value>, TrustSeqErr> {
+pub fn get_json_reports<'a>(
+    modules: &Vec<Box<QCModule + 'a>>,
+) -> Result<Map<String, Value>, TrustSeqErr> {
     let mut reports: Vec<Box<QCReport>> = Vec::new();
     let mut map: Map<String, Value> = Map::new();
     for module in modules {
         module.calculate(&mut reports)?;
-
     }
     for report in reports {
         report.add_json(&mut map)?;
     }
     return Ok(map);
 }
-#[derive(Clone,Debug)]
+#[derive(Clone, Debug)]
 pub struct PhreadEncoding {
     pub name: &'static str,
     pub offset: u8,
@@ -107,24 +106,30 @@ static ILUMINA_1_3_ENCODING_OFFSET: u8 = 64;
 impl PhreadEncoding {
     pub fn get_phread_encoding(lowest_char: u8) -> io::Result<PhreadEncoding> {
         if lowest_char < 32 {
-            return Err(Error::new(ErrorKind::Other, "No known encodings with chars < 33"));
+            return Err(Error::new(
+                ErrorKind::Other,
+                "No known encodings with chars < 33",
+            ));
         } else if lowest_char < 64 {
             return Ok(PhreadEncoding {
-                          offset: SANGER_ENCODING_OFFSET,
-                          name: "Sanger / Illumina 1.9",
-                      });
+                offset: SANGER_ENCODING_OFFSET,
+                name: "Sanger / Illumina 1.9",
+            });
         } else if lowest_char == ILUMINA_1_3_ENCODING_OFFSET + 1 {
             return Ok(PhreadEncoding {
-                          offset: ILUMINA_1_3_ENCODING_OFFSET,
-                          name: "Illumina 1.3",
-                      });
+                offset: ILUMINA_1_3_ENCODING_OFFSET,
+                name: "Illumina 1.3",
+            });
         } else if lowest_char <= 126 {
             return Ok(PhreadEncoding {
-                          offset: ILUMINA_1_3_ENCODING_OFFSET,
-                          name: "Illumina 1.5",
-                      });
+                offset: ILUMINA_1_3_ENCODING_OFFSET,
+                name: "Illumina 1.5",
+            });
         } else {
-            return Err(Error::new(ErrorKind::Other, "No known encodings with chars > 126"));
+            return Err(Error::new(
+                ErrorKind::Other,
+                "No known encodings with chars > 126",
+            ));
         }
     }
 }

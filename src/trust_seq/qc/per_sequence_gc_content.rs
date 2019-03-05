@@ -1,14 +1,14 @@
-use std::io::Write;
-use std::f64;
-use std::slice::Iter;
-use serde_json::value;
 use serde_json::map::Map;
+use serde_json::value;
 use serde_json::value::Value;
 use std::collections::hash_map::HashMap;
-use trust_seq::trust_seq::{TrustSeqConfig, TrustSeqErr};
+use std::f64;
+use std::io::Write;
+use std::slice::Iter;
 use trust_seq::gc_model::GCModel;
+use trust_seq::qc::{QCModule, QCReport, QCResult};
+use trust_seq::trust_seq::{TrustSeqConfig, TrustSeqErr};
 use trust_seq::utils::Sequence;
-use trust_seq::qc::{QCModule, QCResult, QCReport};
 
 pub struct PerSequenceGCContents<'a> {
     config: &'a TrustSeqConfig,
@@ -26,10 +26,10 @@ impl<'a> PerSequenceGCContents<'a> {
         let mut gc_distribution = Vec::new();
         gc_distribution.resize(101, 0.0);
         return PerSequenceGCContents {
-                   config: config,
-                   gc_distribution: [0f64; 101],
-                   gc_models: HashMap::new(),
-               };
+            config: config,
+            gc_distribution: [0f64; 101],
+            gc_models: HashMap::new(),
+        };
     }
 }
 fn truncate_sequence(sequence: &[u8]) -> &[u8] {
@@ -42,7 +42,6 @@ fn truncate_sequence(sequence: &[u8]) -> &[u8] {
     } else {
         return sequence;
     }
-
 }
 fn calc_zscore_for_value(mean: f64, stddev: f64, value: f64) -> f64 {
     let lhs = (2f64 * f64::consts::PI * stddev * stddev).sqrt();
@@ -80,7 +79,8 @@ impl QCReport for PerSequenceGCReport {
 }
 impl<'a> QCModule for PerSequenceGCContents<'a> {
     fn calculate(&self, reports: &mut Vec<Box<QCReport>>) -> Result<(), TrustSeqErr> {
-        let mode = self.gc_distribution
+        let mode = self
+            .gc_distribution
             .iter()
             .enumerate()
             .max_by(|a, b| (a.1).partial_cmp(b.1).unwrap())
@@ -132,10 +132,10 @@ impl<'a> QCModule for PerSequenceGCContents<'a> {
             QCResult::Pass
         };
         reports.push(Box::new(PerSequenceGCReport {
-                                  status: status,
-                                  gc_distribution: self.gc_distribution.to_vec(),
-                                  theoretical_distribution: theoretical_distribution.to_vec(),
-                              }));
+            status: status,
+            gc_distribution: self.gc_distribution.to_vec(),
+            theoretical_distribution: theoretical_distribution.to_vec(),
+        }));
         return Ok(());
     }
     fn process_sequence(&mut self, seq: &Sequence) -> () {

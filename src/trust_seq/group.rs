@@ -5,9 +5,9 @@ pub struct BaseGroup {
     pub lower_count: usize,
     pub upper_count: usize,
 }
-#[derive(Clone,Debug)]
+#[derive(Clone, Debug)]
 pub enum GroupType {
-    none,
+    None,
     linear,
     exponential,
 }
@@ -16,9 +16,9 @@ impl BaseGroup {
         let mut v = Vec::new();
         for base in 1..(max_len + 1) {
             v.push(BaseGroup {
-                       lower_count: base,
-                       upper_count: base,
-                   });
+                lower_count: base,
+                upper_count: base,
+            });
         }
         return v;
     }
@@ -46,9 +46,9 @@ impl BaseGroup {
         while start_pos <= max_len {
             let end_pos = cmp::min(start_pos + interval - 1, max_len);
             v.push(BaseGroup {
-                       lower_count: start_pos,
-                       upper_count: end_pos,
-                   });
+                lower_count: start_pos,
+                upper_count: end_pos,
+            });
             start_pos += interval;
         }
         return v;
@@ -60,9 +60,9 @@ impl BaseGroup {
         while start_pos <= max_len {
             let end_pos = cmp::min(start_pos + interval - 1, max_len);
             v.push(BaseGroup {
-                       lower_count: start_pos,
-                       upper_count: end_pos,
-                   });
+                lower_count: start_pos,
+                upper_count: end_pos,
+            });
             start_pos += interval;
             if start_pos == 10 && max_len > 75 {
                 interval = 5;
@@ -84,7 +84,7 @@ impl BaseGroup {
     }
     pub fn make_base_groups(group_type: &GroupType, max_len: usize) -> Vec<BaseGroup> {
         match *group_type {
-            GroupType::none => BaseGroup::make_ungrouped_groups(max_len),
+            GroupType::None => BaseGroup::make_ungrouped_groups(max_len),
             GroupType::linear => BaseGroup::make_linear_groups(max_len),
             GroupType::exponential => BaseGroup::make_exponential_groups(max_len),
         }

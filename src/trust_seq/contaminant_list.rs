@@ -1,4 +1,4 @@
-pub const CONTAMINANT_LIST : &'static str = r#"
+pub const CONTAMINANT_LIST: &'static str = r#"
 # This file contains a list of potential contaminants which are
 # frequently found in high throughput sequencing reactions.  These
 # are mostly sequences of adapters / primers used in the various

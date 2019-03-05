@@ -1,12 +1,12 @@
+use serde_json::map::Map;
+use serde_json::value;
+use serde_json::Value;
 use std::cmp;
 use std::io::Write;
-use serde_json::Value;
-use serde_json::value;
-use serde_json::map::Map;
+use trust_seq::qc::PhreadEncoding;
+use trust_seq::qc::{QCModule, QCReport, QCResult};
 use trust_seq::trust_seq::TrustSeqErr;
 use trust_seq::utils::Sequence;
-use trust_seq::qc::{QCModule, QCResult, QCReport};
-use trust_seq::qc::PhreadEncoding;
 
 pub struct BasicStats {
     actual_count: u64,
@@ -20,13 +20,13 @@ pub struct BasicStats {
 impl BasicStats {
     pub fn new() -> BasicStats {
         return BasicStats {
-                   actual_count: 0,
-                   filtered_count: 0,
-                   min_length: 0,
-                   max_length: 0,
-                   lowest_char: 255,
-                   gatcn_count: [0; 5],
-               };
+            actual_count: 0,
+            filtered_count: 0,
+            min_length: 0,
+            max_length: 0,
+            lowest_char: 255,
+            gatcn_count: [0; 5],
+        };
     }
 }
 
@@ -46,14 +46,14 @@ impl QCModule for BasicStats {
         let gc_count = self.gatcn_count[0] + self.gatcn_count[3];
         let at_count = self.gatcn_count[1] + self.gatcn_count[2];
         results.push(Box::new(BasicStatsReport {
-                                  status: QCResult::Pass,
-                                  encoding: encoding.name.to_string(),
-                                  total_sequence: self.actual_count,
-                                  filtered_sequence: self.filtered_count,
-                                  sequence_min_length: self.max_length,
-                                  sequence_max_length: self.min_length,
-                                  gc_percent: ((gc_count * 100) / (gc_count + at_count)) as u32,
-                              }));
+            status: QCResult::Pass,
+            encoding: encoding.name.to_string(),
+            total_sequence: self.actual_count,
+            filtered_sequence: self.filtered_count,
+            sequence_min_length: self.max_length,
+            sequence_max_length: self.min_length,
+            gc_percent: ((gc_count * 100) / (gc_count + at_count)) as u32,
+        }));
         return Ok(());
     }
     fn process_sequence(&mut self, seq: &Sequence) -> () {
@@ -110,10 +110,11 @@ impl QCReport for BasicStatsReport {
         if self.sequence_min_length == self.sequence_max_length {
             write!(writer, "Sequence length\t{}\n", self.sequence_min_length)?;
         } else {
-            write!(writer,
-                   "Sequence length\t{}-{}\n",
-                   self.sequence_min_length,
-                   self.sequence_max_length)?;
+            write!(
+                writer,
+                "Sequence length\t{}-{}\n",
+                self.sequence_min_length, self.sequence_max_length
+            )?;
         }
         write!(writer, "%GC\t{}\n", self.gc_percent)?;
         return Ok(());

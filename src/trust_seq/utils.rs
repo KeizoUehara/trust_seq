@@ -1,9 +1,6 @@
 use std::io::Read;
-use std::boxed::Box;
 use std::io::Result;
 use std::option::Option;
-use std::io::Error;
-use std::io::ErrorKind;
 
 pub fn split_by_space(line: &str) -> Vec<&str> {
     let mut vals: Vec<&str> = Vec::new();
@@ -19,7 +16,6 @@ pub fn split_by_space(line: &str) -> Vec<&str> {
                 start = -1;
             }
         }
-
     }
     if 0 < start {
         vals.push(&line[(start as usize)..]);
@@ -31,21 +27,21 @@ pub fn revcomp(dna: &str) -> String {
     let mut rdna: String = String::with_capacity(dna.len());
     for c in dna.chars().rev() {
         rdna.push(match c {
-                      'A' => 'T',
-                      'a' => 't',
-                      'T' => 'A',
-                      't' => 'a',
-                      'G' => 'C',
-                      'g' => 'c',
-                      'C' => 'G',
-                      'c' => 'g',
-                      _ => 'N',
-                  });
+            'A' => 'T',
+            'a' => 't',
+            'T' => 'A',
+            't' => 'a',
+            'G' => 'C',
+            'g' => 'c',
+            'C' => 'G',
+            'c' => 'g',
+            _ => 'N',
+        });
     }
     rdna
 }
 pub struct LineReader<R: Read> {
-    read: Box<R>,
+    read: R,
     len: usize,
     pos: usize,
     buff: Vec<u8>,
@@ -53,78 +49,76 @@ pub struct LineReader<R: Read> {
 impl<R: Read> LineReader<R> {
     pub fn new(read: R, size: usize) -> LineReader<R> {
         return LineReader {
-                   read: Box::new(read),
-                   len: 0,
-                   pos: 0,
-                   buff: vec![ 0 ;size],
-               };
+            read: read,
+            len: 0,
+            pos: 0,
+            buff: vec![0; size],
+        };
     }
-    pub fn read_lines<'b>(&'b mut self, lines: &mut [&'b [u8]]) -> Result<bool> {
-        let line_num = lines.len();
-        loop {
-            let mut positions = Vec::new();
-            let mut start = self.pos;
-            for line_idx in 0..line_num {
-                for idx in start..self.len {
-                    if self.buff[idx] == '\n' as u8 {
-                        positions.push(start..(idx + 1));
-                        start = idx + 1;
+    fn read(&mut self) -> Result<usize> {
+        for i in 0..self.len {
+            self.buff[i] = self.buff[self.pos + i];
+        }
+        self.pos = 0;
+        let len = try!(self.read.read(&mut self.buff[self.len..]));
+        self.len = self.len + len;
+        return Ok(len);
+    }
+    pub fn read_line(&mut self) -> Result<Option<&[u8]>> {
+        let mut pos = 0;
+        for idx in 0.. {
+            if self.len <= idx {
+                let rslt = self.read()?;
+                if 0 == rslt {
+                    if idx == 0 {
+                        return Ok(None);
+                    } else {
+                        pos = idx;
                         break;
                     }
                 }
             }
-            if positions.len() == lines.len() {
-                for (idx, line) in lines.iter_mut().enumerate() {
-                    *line = &self.buff[positions[idx].start..positions[idx].end];
-                }
-                self.pos = start;
-                return Ok(true);
+            if self.buff[self.pos + idx] == '\n' as u8 {
+                pos = idx;
+                break;
             }
-            let l = self.len - self.pos;
-            for idx in 0..l {
-                self.buff[l - idx - 1] = self.buff[self.len - idx - 1];
-            }
-            self.pos = 0;
-            self.len = l;
-            let len = try!(self.read.read(&mut self.buff[self.len..]));
-            if len <= 0 {
-                if self.len == 0 {
-                    return Ok(false);
-                } else {
-                    self.len = 0;
-                    return Err(Error::new(ErrorKind::UnexpectedEof, "Unexpectedeof"));
-                }
-            }
-            self.len = self.len + len;
         }
+        let s = &self.buff[self.pos..(self.pos + pos + 1)];
+        self.pos = self.pos + pos + 1;
+        self.len = self.len - pos - 1;
+        return Ok(Some(s));
     }
-    pub fn read_line(&mut self) -> Result<Option<&[u8]>> {
-        loop {
-            let start = self.pos;
-            for idx in self.pos..self.len {
-                if self.buff[idx] == '\n' as u8 {
-                    self.pos = idx + 1;
-                    return Ok(Some(&self.buff[start..self.pos]));
+    pub fn read_lines(&mut self, lsize: usize) -> Result<Vec<&[u8]>> {
+        let mut lines = Vec::with_capacity(lsize);
+        for idx in 0.. {
+            if self.len <= idx {
+                let rslt = self.read()?;
+                if 0 == rslt {
+                    if idx == 0 {
+                        return Ok(Vec::new());
+                    } else {
+                        lines.push(idx);
+                        break;
+                    }
                 }
             }
-            let l = self.len - self.pos;
-            for idx in 0..l {
-                self.buff[l - idx - 1] = self.buff[self.len - idx - 1];
-            }
-            self.pos = 0;
-            self.len = l;
-            let len = try!(self.read.read(&mut self.buff[self.len..]));
-            if len <= 0 {
-                if self.len == 0 {
-                    return Ok(None);
-                } else {
-                    let l = self.len;
-                    self.len = 0;
-                    return Ok(Some(&self.buff[0..l]));
+            if self.buff[self.pos + idx] == '\n' as u8 {
+                lines.push(idx);
+                if lsize <= lines.len() {
+                    break;
                 }
             }
-            self.len = self.len + len;
         }
+        let mut lv = Vec::with_capacity(lsize);
+        let mut pos = 0;
+        for l in &lines {
+            let s = &self.buff[(self.pos + pos)..(self.pos + l + 1)];
+            lv.push(s);
+            pos = l + 1;
+        }
+        self.pos = self.pos + pos;
+        self.len = self.len - pos;
+        return Ok(lv);
     }
 }
 pub struct Sequence<'a> {
@@ -132,45 +126,69 @@ pub struct Sequence<'a> {
     pub sequence: &'a [u8],
     pub quality: &'a [u8],
 }
-pub struct FastQReader<'a, T: Read> {
+pub struct FastQReader<T: Read> {
     reader: LineReader<T>,
-    lines: [&'a [u8]; 4],
 }
-static U8_ARRAY: [u8; 1] = ['a' as u8; 1];
-impl<'a, T: Read> FastQReader<'a, T> {
-    pub fn new(read: T) -> FastQReader<'a, T> {
+impl<'a, T: Read> FastQReader<T> {
+    pub fn new(read: T) -> FastQReader<T> {
         return FastQReader {
-                   reader: LineReader::new(read, 4096),
-                   lines: [&U8_ARRAY[0..0]; 4],
-               };
+            reader: LineReader::new(read, 4096)
+        };
     }
     pub fn next_seq(&mut self) -> Result<Option<Sequence>> {
-        let rslt = try!(self.reader.read_lines(&mut self.lines));
+        let rslt = self.reader.read_lines(4);
         match rslt {
-            true => {
-                let id = self.lines[0];
-                let seq = self.lines[1];
-                let qual = self.lines[3];
-                let len = seq.len() - 1;
+            Ok(lines) => {
+                if lines.is_empty() {
+                    return Ok(None);
+                }
+                let id = lines[0];
+                let seq = lines[1];
+                let qual = lines[3];
+                let trim = if lines[0][id.len() - 2] == '\r' as u8 {
+                    2
+                } else {
+                    1
+                };
+                let len = seq.len() - trim;
                 return Ok(Some(Sequence {
-                                   id: &id[0..id.len() - 1],
-                                   sequence: &seq[0..len],
-                                   quality: &qual[0..len],
-                               }));
+                    id: &id[0..id.len() - trim],
+                    sequence: &seq[0..len],
+                    quality: &qual[0..len],
+                }));
             }
-            false => return Ok(None),
+            Err(e) => return Err(e),
         }
     }
 }
-
-
 #[cfg(test)]
 mod tests {
     use super::split_by_space;
+    use super::LineReader;
     #[test]
     fn test_split_by_space() {
-        assert_eq!(vec!["test1", "test2", "test3"],
-                   split_by_space("test1 test2  test3"));
+        assert_eq!(
+            vec!["test1", "test2", "test3"],
+            split_by_space("test1 test2  test3")
+        );
         assert_eq!(vec!["test1", "test2"], split_by_space(" test1 test2  "));
+    }
+    #[test]
+    fn test_split_by_newline() {
+        let cur = std::io::Cursor::new(b"test1\ntest2\ntest3\n");
+        let mut reader = LineReader::new(cur, 1024);
+        println!(
+            "{}",
+            String::from_utf8_lossy(reader.read_line().unwrap().unwrap())
+        );
+        println!(
+            "{}",
+            String::from_utf8_lossy(reader.read_line().unwrap().unwrap())
+        );
+        println!(
+            "{}",
+            String::from_utf8_lossy(reader.read_line().unwrap().unwrap())
+        );
+        assert_eq!(1, 1);
     }
 }

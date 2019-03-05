@@ -1,4 +1,4 @@
-pub const ADAPTER_LIST : &'static str = r#"
+pub const ADAPTER_LIST: &'static str = r#"
 # This file contains a set of sequence fragments which will be explicitly
 # searched against your library.  The reporting will be similar to the 
 # Kmer plot, except that every sequence in this list will be shown so 

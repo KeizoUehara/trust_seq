@@ -1,9 +1,9 @@
 #[macro_use]
 extern crate serde_derive;
 
-extern crate serde_json;
-extern crate serde;
 extern crate getopts;
+extern crate serde;
+extern crate serde_json;
 mod trust_seq;
 
 #[cfg(test)]
@@ -16,11 +16,11 @@ mod tests {
     fn test_load_contaminants() {
         let cons = Contaminant::load_contaminants(BufReader::new(CONTAMINANT_LIST.as_bytes()));
         let hit = find_contaminant(&cons, "ACACTCTTTCCCTACACGACGCTCTTCCGATCT".as_bytes());
-        println!("query = {} , hit={:?}",
-                 "ACACTCTTTCCCTACACGACGCTCTTCCGATCT",
-                 hit);
+        println!(
+            "query = {} , hit={:?}",
+            "ACACTCTTTCCCTACACGACGCTCTTCCGATCT", hit
+        );
         assert_eq!(151, cons.len());
         println!("{:?}", cons[0]);
-
     }
 }

@@ -1,17 +1,16 @@
-use std::cmp;
-use std::str;
-use std::io::Write;
-use std::io::BufReader;
+use serde_json::map::Map;
 use serde_json::value;
 use serde_json::value::Value;
-use serde_json::map::Map;
-use trust_seq::group::BaseGroup;
-use trust_seq::trust_seq::{TrustSeqConfig, TrustSeqErr};
-use trust_seq::utils::Sequence;
+use std::cmp;
+use std::io::BufReader;
+use std::io::Write;
+use std::str;
 use trust_seq::adapter::Adapter;
 use trust_seq::adapter_list::ADAPTER_LIST;
-use trust_seq::qc::{QCModule, QCResult, QCReport};
-use trust_seq::qc::PhreadEncoding;
+use trust_seq::group::BaseGroup;
+use trust_seq::qc::{QCModule, QCReport, QCResult};
+use trust_seq::trust_seq::{TrustSeqConfig, TrustSeqErr};
+use trust_seq::utils::Sequence;
 
 #[derive(Debug)]
 pub struct AdapterContent<'a> {
@@ -67,12 +66,12 @@ impl<'a> AdapterContent<'a> {
             .iter()
             .fold(0, |acc, ref a| cmp::max(acc, a.sequence.len()));
         return AdapterContent {
-                   config: config,
-                   total_count: 0,
-                   longest_sequence: 0,
-                   longest_adapter: length,
-                   adapters: adapters,
-               };
+            config: config,
+            total_count: 0,
+            longest_sequence: 0,
+            longest_adapter: length,
+            adapters: adapters,
+        };
     }
     fn ignore_filtered_sequences(&self) -> bool {
         return true;
@@ -87,15 +86,16 @@ impl<'a> QCModule for AdapterContent<'a> {
         let mut max_enrichment = 0.0f64;
         for adapter in &self.adapters {
             adapter_names.push(adapter.name.clone());
-            enrichments.push(vec![0.0;groups.len()]);
+            enrichments.push(vec![0.0; groups.len()]);
         }
         for (a, adapter) in self.adapters.iter().enumerate() {
             for (g, group) in groups.iter().enumerate() {
                 for idx in (group.lower_count - 1)..group.upper_count {
                     enrichments[a][g] += adapter.positions[idx] as f64;
                 }
-                enrichments[a][g] *= 100.0 / self.total_count as f64 /
-                                     (group.lower_count - group.upper_count + 1) as f64;
+                enrichments[a][g] *= 100.0
+                    / self.total_count as f64
+                    / (group.lower_count - group.upper_count + 1) as f64;
                 max_enrichment = max_enrichment.max(enrichments[a][g]);
             }
         }
@@ -107,11 +107,11 @@ impl<'a> QCModule for AdapterContent<'a> {
             QCResult::Pass
         };
         results.push(Box::new(AdapterContentReport {
-                                  status: status,
-                                  groups: groups,
-                                  adapter_names: adapter_names,
-                                  enrichments: enrichments,
-                              }));
+            status: status,
+            groups: groups,
+            adapter_names: adapter_names,
+            enrichments: enrichments,
+        }));
         return Ok(());
     }
     fn process_sequence(&mut self, seq: &Sequence) -> () {
@@ -129,6 +129,5 @@ impl<'a> QCModule for AdapterContent<'a> {
                 _ => (),
             };
         }
-
     }
 }

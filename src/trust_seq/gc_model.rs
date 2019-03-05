@@ -1,4 +1,3 @@
-
 pub struct GCModelValue {
     percentage: usize,
     increment: f64,
@@ -25,16 +24,16 @@ impl GCModel {
             let mut model: Vec<GCModelValue> = Vec::new();
             for p in low_percentage..(high_percentage + 1) {
                 model.push(GCModelValue {
-                               percentage: p,
-                               increment: 1.0 / (claiming_counts[p] as f64),
-                           });
+                    percentage: p,
+                    increment: 1.0 / (claiming_counts[p] as f64),
+                });
             }
             models.push(model);
         }
         return GCModel {
-                   read_length: read_length,
-                   models: models,
-               };
+            read_length: read_length,
+            models: models,
+        };
     }
 }
 pub fn calc_claiming_counts(read_length: usize) -> [u32; 101] {

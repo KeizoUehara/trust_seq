@@ -1,4 +1,4 @@
-pub const LIMIT_DEFAULT :&'static str = r#"
+pub const LIMIT_DEFAULT: &'static str = r#"
 # For each of the modules you can choose to not run that
 # module at all by setting the value below to 1 for the
 # modules you want to remove.
