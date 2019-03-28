@@ -216,11 +216,7 @@ impl Contaminant {
                 Some(i) => value.push_str(&line[(i + 1)..]),
                 None => continue,
             }
-            cons.push(Contaminant {
-                name: key,
-                forward: value.clone(),
-                reverse: utils::revcomp(&value),
-            });
+            cons.push(Contaminant::new(&key, &value));
         }
         return cons;
     }

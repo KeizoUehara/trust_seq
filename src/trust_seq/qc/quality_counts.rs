@@ -52,11 +52,9 @@ impl QualityCounts {
     }
 
     pub fn get_min_percentile(&self, offset: u32, percentile: u32) -> u32 {
-        let mut count = 0;
         let mut min_value: u32 = 1000;
         for c in &self.counts {
             if c.total_count > 100 {
-                count += 1;
                 min_value = cmp::min(min_value, c.get_percentile(offset, percentile));
             }
         }

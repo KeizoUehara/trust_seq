@@ -112,7 +112,7 @@ impl<'a> QCModule for PerBaseSequenceContent<'a> {
     }
     fn process_sequence(&mut self, seq: &Sequence) -> () {
         if self.counts[0].len() < seq.sequence.len() {
-            for i in self.counts[0].len()..seq.sequence.len() {
+            for _i in self.counts[0].len()..seq.sequence.len() {
                 for count in &mut self.counts {
                     count.push(0);
                 }

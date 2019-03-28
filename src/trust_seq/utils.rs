@@ -132,7 +132,7 @@ pub struct FastQReader<T: Read> {
 impl<'a, T: Read> FastQReader<T> {
     pub fn new(read: T) -> FastQReader<T> {
         return FastQReader {
-            reader: LineReader::new(read, 4096)
+            reader: LineReader::new(read, 4096),
         };
     }
     pub fn next_seq(&mut self) -> Result<Option<Sequence>> {

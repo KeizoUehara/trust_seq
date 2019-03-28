@@ -43,7 +43,7 @@ impl QCReport for AdapterContentReport {
         for name in &self.adapter_names {
             write!(writer, "\t{}", name)?;
         }
-        write!(writer, "\n");
+        write!(writer, "\n")?;
         for (group_idx, group) in self.groups.iter().enumerate() {
             if group.lower_count == group.upper_count {
                 write!(writer, "{}", group.lower_count)?;
@@ -53,7 +53,7 @@ impl QCReport for AdapterContentReport {
             for adapter_idx in 0..self.adapter_names.len() {
                 write!(writer, "\t{}", self.enrichments[adapter_idx][group_idx])?;
             }
-            write!(writer, "\n");
+            write!(writer, "\n")?;
         }
         return Ok(());
     }

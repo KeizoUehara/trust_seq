@@ -8,8 +8,8 @@ pub struct BaseGroup {
 #[derive(Clone, Debug)]
 pub enum GroupType {
     None,
-    linear,
-    exponential,
+    Linear,
+    Exponential,
 }
 impl BaseGroup {
     fn make_ungrouped_groups(max_len: usize) -> Vec<BaseGroup> {
@@ -85,8 +85,8 @@ impl BaseGroup {
     pub fn make_base_groups(group_type: &GroupType, max_len: usize) -> Vec<BaseGroup> {
         match *group_type {
             GroupType::None => BaseGroup::make_ungrouped_groups(max_len),
-            GroupType::linear => BaseGroup::make_linear_groups(max_len),
-            GroupType::exponential => BaseGroup::make_exponential_groups(max_len),
+            GroupType::Linear => BaseGroup::make_linear_groups(max_len),
+            GroupType::Exponential => BaseGroup::make_exponential_groups(max_len),
         }
     }
 }
@@ -105,12 +105,12 @@ mod tests {
     }
     #[test]
     fn test_linear_group() {
-        check_base_groups(GroupType::linear, 70, 70);
-        check_base_groups(GroupType::linear, 75, 75);
-        check_base_groups(GroupType::linear, 76, 43);
-        check_base_groups(GroupType::linear, 100, 55);
-        check_base_groups(GroupType::linear, 139, 74);
-        check_base_groups(GroupType::linear, 140, 36);
-        check_base_groups(GroupType::linear, 500, 59);
+        check_base_groups(GroupType::Linear, 70, 70);
+        check_base_groups(GroupType::Linear, 75, 75);
+        check_base_groups(GroupType::Linear, 76, 43);
+        check_base_groups(GroupType::Linear, 100, 55);
+        check_base_groups(GroupType::Linear, 139, 74);
+        check_base_groups(GroupType::Linear, 140, 36);
+        check_base_groups(GroupType::Linear, 500, 59);
     }
 }

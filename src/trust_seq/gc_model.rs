@@ -3,7 +3,6 @@ pub struct GCModelValue {
     increment: f64,
 }
 pub struct GCModel {
-    read_length: usize,
     models: Vec<Vec<GCModelValue>>,
 }
 impl GCModel {
@@ -30,10 +29,7 @@ impl GCModel {
             }
             models.push(model);
         }
-        return GCModel {
-            read_length: read_length,
-            models: models,
-        };
+        return GCModel { models: models };
     }
 }
 pub fn calc_claiming_counts(read_length: usize) -> [u32; 101] {

@@ -71,17 +71,19 @@ impl TrustSeqConfig {
         let matches = opts.parse(&args[1..])?;
         if let Some(c_path) = matches.opt_str("c") {
             if !Path::new(&c_path).is_file() {
-                return Err(TrustSeqErr::Io(
-                    io::Error::new(ErrorKind::NotFound, format!("{} is not Found!", c_path)),
-                ));
+                return Err(TrustSeqErr::Io(io::Error::new(
+                    ErrorKind::NotFound,
+                    format!("{} is not Found!", c_path),
+                )));
             }
             config.contaminant_file = Some(c_path);
         }
         if let Some(a_path) = matches.opt_str("a") {
             if !Path::new(&a_path).is_file() {
-                return Err(TrustSeqErr::Io(
-                    io::Error::new(ErrorKind::NotFound, format!("{} is not Found!", a_path)),
-                ));
+                return Err(TrustSeqErr::Io(io::Error::new(
+                    ErrorKind::NotFound,
+                    format!("{} is not Found!", a_path),
+                )));
             }
             config.adapter_file = Some(a_path);
         }
@@ -90,16 +92,17 @@ impl TrustSeqConfig {
             config.module_config.load(BufReader::new(f))?;
         }
         if matches.free.len() <= 0 {
-            return Err(TrustSeqErr::Io(
-                io::Error::new(ErrorKind::NotFound, format!("missing orepand")),
-            ));
+            return Err(TrustSeqErr::Io(io::Error::new(
+                ErrorKind::NotFound,
+                format!("missing orepand"),
+            )));
         }
         config.files = matches.free;
         return Ok(config);
     }
     pub fn new() -> TrustSeqConfig {
         return TrustSeqConfig {
-            group_type: GroupType::linear,
+            group_type: GroupType::Linear,
             quiet: false,
             show_version: false,
             kmer_size: None,
