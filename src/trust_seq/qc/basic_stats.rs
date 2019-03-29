@@ -1,12 +1,12 @@
+use crate::trust_seq::qc::PhreadEncoding;
+use crate::trust_seq::qc::{QCModule, QCReport, QCResult};
+use crate::trust_seq::trust_seq::TrustSeqErr;
+use crate::trust_seq::utils::Sequence;
 use serde_json::map::Map;
 use serde_json::value;
 use serde_json::Value;
 use std::cmp;
 use std::io::Write;
-use trust_seq::qc::PhreadEncoding;
-use trust_seq::qc::{QCModule, QCReport, QCResult};
-use trust_seq::trust_seq::TrustSeqErr;
-use trust_seq::utils::Sequence;
 
 pub struct BasicStats {
     actual_count: u64,

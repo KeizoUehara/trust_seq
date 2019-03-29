@@ -1,6 +1,6 @@
+use crate::trust_seq::group::BaseGroup;
 use std::cmp;
 use std::f64;
-use trust_seq::group::BaseGroup;
 
 pub struct QualityCounts {
     pub counts: Vec<QualityCount>,

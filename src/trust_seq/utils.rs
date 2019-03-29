@@ -60,7 +60,7 @@ impl<R: Read> LineReader<R> {
             self.buff[i] = self.buff[self.pos + i];
         }
         self.pos = 0;
-        let len = try!(self.read.read(&mut self.buff[self.len..]));
+        let len = self.read.read(&mut self.buff[self.len..])?;
         self.len = self.len + len;
         return Ok(len);
     }

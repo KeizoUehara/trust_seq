@@ -8,5 +8,6 @@ pub mod limits;
 pub mod math;
 pub mod module_config;
 pub mod qc;
+pub mod range_coder;
 pub mod trust_seq;
 pub mod utils;

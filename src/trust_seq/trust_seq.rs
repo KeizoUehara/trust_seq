@@ -1,3 +1,5 @@
+use super::group::GroupType;
+use super::module_config::ModuleConfig;
 use getopts::{Fail, Options};
 use serde_json;
 use std::fs::File;
@@ -6,8 +8,6 @@ use std::io::BufReader;
 use std::io::ErrorKind;
 use std::path::Path;
 use std::vec::Vec;
-use trust_seq::group::GroupType;
-use trust_seq::module_config::ModuleConfig;
 #[derive(Debug)]
 pub enum TrustSeqErr {
     Io(io::Error),

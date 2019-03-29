@@ -1,3 +1,9 @@
+use super::super::adapter::Adapter;
+use super::super::adapter_list::ADAPTER_LIST;
+use super::super::group::BaseGroup;
+use super::super::utils::Sequence;
+use super::{QCModule, QCReport, QCResult};
+use crate::trust_seq::trust_seq::{TrustSeqConfig, TrustSeqErr};
 use serde_json::map::Map;
 use serde_json::value;
 use serde_json::value::Value;
@@ -5,12 +11,6 @@ use std::cmp;
 use std::io::BufReader;
 use std::io::Write;
 use std::str;
-use trust_seq::adapter::Adapter;
-use trust_seq::adapter_list::ADAPTER_LIST;
-use trust_seq::group::BaseGroup;
-use trust_seq::qc::{QCModule, QCReport, QCResult};
-use trust_seq::trust_seq::{TrustSeqConfig, TrustSeqErr};
-use trust_seq::utils::Sequence;
 
 #[derive(Debug)]
 pub struct AdapterContent<'a> {

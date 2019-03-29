@@ -1,15 +1,15 @@
+use crate::trust_seq::contaminant::find_contaminant;
+use crate::trust_seq::contaminant::Contaminant;
+use crate::trust_seq::contaminant_list::CONTAMINANT_LIST;
+use crate::trust_seq::qc::{QCModule, QCReport, QCResult};
+use crate::trust_seq::trust_seq::{TrustSeqConfig, TrustSeqErr};
+use crate::trust_seq::utils::Sequence;
 use serde_json::map::Map;
 use serde_json::value;
 use serde_json::Value;
 use std::collections::hash_map::HashMap;
 use std::io::BufReader;
 use std::io::Write;
-use trust_seq::contaminant::find_contaminant;
-use trust_seq::contaminant::Contaminant;
-use trust_seq::contaminant_list::CONTAMINANT_LIST;
-use trust_seq::qc::{QCModule, QCReport, QCResult};
-use trust_seq::trust_seq::{TrustSeqConfig, TrustSeqErr};
-use trust_seq::utils::Sequence;
 
 const OBSERVATION_CUTOFF: usize = 100000;
 

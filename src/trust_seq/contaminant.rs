@@ -1,7 +1,7 @@
+use super::utils;
 use std::cmp;
 use std::io::BufRead;
 use std::vec::Vec;
-use trust_seq::utils;
 
 #[derive(Debug, Clone, Copy)]
 pub struct ContaminantHit<'a> {
